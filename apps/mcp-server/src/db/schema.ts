@@ -62,3 +62,25 @@ export const mediaCatalog = pgTable('media_catalog', {
   rentalPrice: numeric('rental_price', { precision: 6, scale: 2 }).notNull().default('0.00'),
   coverImageUrl: text('cover_image_url').notNull(),
 });
+
+export const agentRuns = pgTable('agent_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  rawPrompt: text('raw_prompt').notNull(),
+  intentDetected: varchar('intent_detected', { length: 64 }).notNull().default('analyzing'),
+  bedrockModelId: varchar('bedrock_model_id', { length: 128 }).notNull(),
+  executionStatus: varchar('execution_status', { length: 32 }).notNull().default('running'),
+  latencyMs: integer('latency_ms'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const agentToolCalls = pgTable('agent_tool_calls', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  runId: uuid('run_id').notNull().references(() => agentRuns.id, { onDelete: 'cascade' }),
+  toolName: varchar('tool_name', { length: 64 }).notNull(),
+  inputPayload: jsonb('input_payload'),
+  outputPayload: jsonb('output_payload'),
+  executionOrder: integer('execution_order').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  runIdx: index('idx_tool_calls_run').on(table.runId, table.executionOrder),
+}));

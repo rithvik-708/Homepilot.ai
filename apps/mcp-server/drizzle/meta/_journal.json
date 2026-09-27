@@ -8,6 +8,13 @@
       "when": 1790488950533,
       "tag": "0000_fresh_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790491234381,
+      "tag": "0001_boring_agent_zero",
+      "breakpoints": true
     }
   ]
 }

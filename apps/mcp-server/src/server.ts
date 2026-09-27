@@ -1,7 +1,8 @@
 import Fastify from 'fastify';
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { MCP_TOOLS } from './schemas/tools.js';
+import { executeTool } from './tools/dispatcher.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -15,16 +16,30 @@ const mcpServer = new Server({
   }
 });
 
-// Setup tool handling based on your 12 locked contracts
+// List all 12 MCP Tools
+mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: MCP_TOOLS.map(t => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+    })),
+  };
+});
+
+// Unified tool execution handling
 mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  
-  // Day 3-4 implementation logic will inject here
-  switch (name) {
-    case "home_get_state":
-      return { content: [{ type: "text", text: `Mock state for ${(args as any).zoneId}` }] };
-    default:
-      throw new Error(`Tool ${name} not implemented`);
+  try {
+    const result = await executeTool(name, args);
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }],
+    };
+  } catch (error: any) {
+    return {
+      isError: true,
+      content: [{ type: "text", text: error.message }],
+    };
   }
 });
 
@@ -38,9 +53,6 @@ fastify.post('/mcp', async (request, reply) => {
   const rpcMessage = request.body;
   
   try {
-    // Note: The custom open-source package @homepilot/mcp-streamable-http 
-    // will eventually handle this exact bridge. 
-    // For Day 1, we simulate the transport response execution.
     const result = await (mcpServer as any).handleMessage(rpcMessage as any);
     
     return reply

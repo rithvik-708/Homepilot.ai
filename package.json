@@ -12,7 +12,7 @@
     "db:check": "pnpm --filter mcp-server db:check",
     "db:studio": "pnpm --filter mcp-server db:studio",
     "drizzle-kit": "pnpm --filter mcp-server exec drizzle-kit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "pnpm --filter mcp-server test"
   },
   "keywords": [],
   "author": "",
@@ -34,6 +34,7 @@
   "devDependencies": {
     "drizzle-kit": "^0.31.11",
     "eslint": "^10.11.0",
-    "turbo": "^2.11.4"
+    "turbo": "^2.11.4",
+    "typescript": "^7.0.2"
   }
 }
