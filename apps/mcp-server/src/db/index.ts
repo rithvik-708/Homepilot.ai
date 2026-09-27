@@ -27,5 +27,10 @@ loadEnv();
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/homepilot';
 
-export const client = postgres(connectionString);
+export const client = postgres(connectionString, {
+  connect_timeout: 3,
+  idle_timeout: 5,
+  max: 10,
+});
 export const db = drizzle(client, { schema });
+

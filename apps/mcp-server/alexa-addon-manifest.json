@@ -1,0 +1,30 @@
+{
+  "manifestVersion": "1.0",
+  "addonId": "amzn1.alexa.addon.homepilot.mcp",
+  "name": "Homepilot Agentic Core",
+  "description": "Provides local environment, media, and routine management via MCP streamable endpoints.",
+  "endpoint": {
+    "uri": "https://mcp.your-cloudflare-tunnel.com/mcp",
+    "transport": "HTTP_STREAMABLE",
+    "specVersion": "2025-11-25",
+    "authentication": {
+      "type": "OAUTH2_PKCE",
+      "clientId": "${env.ALEXA_CLIENT_ID}",
+      "scopes": ["alexa::home:control", "alexa::profile:read"]
+    }
+  },
+  "capabilities": [
+    {
+      "type": "MCP_TOOL",
+      "name": "home_set_environment"
+    },
+    {
+      "type": "MCP_TOOL",
+      "name": "media_launch_playback"
+    },
+    {
+      "type": "MCP_TOOL",
+      "name": "routine_record_execution"
+    }
+  ]
+}

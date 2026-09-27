@@ -1,13 +1,46 @@
 import * as dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Search for .env up to workspace root
+function loadEnv() {
+  let curr = __dirname;
+  for (let i = 0; i < 5; i++) {
+    const envPath = path.join(curr, '.env');
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+      break;
+    }
+    curr = path.dirname(curr);
+  }
+  dotenv.config();
+}
+loadEnv();
 
 import Fastify from 'fastify';
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { MCP_TOOLS } from './schemas/tools.js';
 import { executeTool } from './tools/dispatcher.js';
+import { createStreamableHttpTransport } from '@homepilot/mcp-streamable-http';
+import { verifyAlexaOAuth } from './auth/oauth2.js';
 
 const fastify = Fastify({ logger: true });
+
+// Health check endpoint
+fastify.get('/health', async () => {
+  return {
+    status: 'ok',
+    provider: process.env.AI_PROVIDER || 'nim',
+    model: process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.2-11b-vision-instruct',
+    timestamp: new Date().toISOString()
+  };
+});
+
 
 // Core MCP Server initialization
 const mcpServer = new Server({
@@ -47,26 +80,9 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 // Streamable HTTP Endpoint (Spec: 2025-11-25)
-fastify.post('/mcp', async (request, reply) => {
-  // 1. Verify OAuth 2.1 / Bearer Token (Phase 4 requirement)
-  const authHeader = request.headers.authorization;
-  if (!authHeader) return reply.code(401).send({ error: "Unauthorized" });
-
-  // 2. Parse JSON-RPC payload
-  const rpcMessage = request.body;
-  
-  try {
-    const result = await (mcpServer as any).handleMessage(rpcMessage as any);
-    
-    return reply
-      .code(200)
-      .header('Content-Type', 'application/json')
-      .send(result);
-  } catch (error) {
-    request.log.error(error);
-    return reply.code(500).send({ error: "Internal MCP Server Error" });
-  }
-});
+fastify.post('/mcp', { preHandler: verifyAlexaOAuth }, createStreamableHttpTransport({
+  mcpServer
+}));
 
 import { AgentOrchestrator } from './agent/orchestrator.js';
 import { localBus } from './pubsub/redis.js';
