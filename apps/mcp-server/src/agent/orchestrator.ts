@@ -5,6 +5,7 @@ import { createProvider } from './providers/index.js';
 import { executeTool } from '../tools/dispatcher.js';
 import { Message, ToolResultBlock } from '@aws-sdk/client-bedrock-runtime';
 import { eq } from 'drizzle-orm';
+import { publishAgentEvent } from '../pubsub/redis.js';
 
 export interface OrchestratorOptions {
   useLocal?: boolean;
@@ -61,6 +62,14 @@ export class AgentOrchestrator {
       }
     }
 
+    publishAgentEvent({
+      type: 'agent_started',
+      runId: runId || 'unknown',
+      timestamp: new Date().toISOString(),
+      intent: this.detectIntent(prompt),
+      modelId: this.modelId,
+    });
+
     const messages: Message[] = [
       {
         role: 'user',
@@ -104,6 +113,14 @@ export class AgentOrchestrator {
         const tool = block.toolUse;
         if (!tool || !tool.name) continue;
 
+        publishAgentEvent({
+          type: 'tool_started',
+          runId: runId || 'unknown',
+          timestamp: new Date().toISOString(),
+          tool: tool.name,
+          step: { id: tool.toolUseId, text: `Running ${tool.name}`, status: 'running' }
+        });
+
         try {
           // Unified tool execution (Matches Fastify handler & updates shared state)
           const resultPayload = await executeTool(tool.name, tool.input);
@@ -128,6 +145,14 @@ export class AgentOrchestrator {
             content: [{ json: resultPayload as any }],
             status: 'success',
           });
+
+          publishAgentEvent({
+            type: 'tool_completed',
+            runId: runId || 'unknown',
+            timestamp: new Date().toISOString(),
+            tool: tool.name,
+            step: { id: tool.toolUseId, text: `Completed ${tool.name}`, status: 'completed' }
+          });
         } catch (error: any) {
           // Day 11 Error Recovery: Structured error fed back to LLM for auto-correction
           if (runId && !this.skipDbLogging) {
@@ -148,6 +173,15 @@ export class AgentOrchestrator {
             toolUseId: tool.toolUseId,
             content: [{ text: `Error: ${error.message}` }],
             status: 'error',
+          });
+
+          publishAgentEvent({
+            type: 'tool_failed',
+            runId: runId || 'unknown',
+            timestamp: new Date().toISOString(),
+            tool: tool.name,
+            error: error.message,
+            step: { id: tool.toolUseId, text: `Failed ${tool.name}`, status: 'failed' }
           });
         }
       }
@@ -179,6 +213,14 @@ export class AgentOrchestrator {
         console.warn('[AgentOrchestrator] DB telemetry finalize error:', dbError);
       }
     }
+
+    publishAgentEvent({
+      type: 'agent_completed',
+      runId: runId || 'unknown',
+      timestamp: new Date().toISOString(),
+      summary: finalSummary,
+      latencyMs: Date.now() - startTime,
+    });
 
     return finalSummary;
   }

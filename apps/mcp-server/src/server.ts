@@ -1,3 +1,6 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import Fastify from 'fastify';
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -63,6 +66,63 @@ fastify.post('/mcp', async (request, reply) => {
     request.log.error(error);
     return reply.code(500).send({ error: "Internal MCP Server Error" });
   }
+});
+
+import { AgentOrchestrator } from './agent/orchestrator.js';
+import { localBus } from './pubsub/redis.js';
+
+// Agent execution endpoint
+fastify.post('/agent/execute', async (request, reply) => {
+  const { prompt } = request.body as { prompt: string };
+  if (!prompt) {
+    return reply.code(400).send({ error: "prompt is required" });
+  }
+
+  try {
+    const orchestrator = new AgentOrchestrator();
+    const result = await orchestrator.executeTask(prompt);
+    
+    return reply
+      .code(200)
+      .header('Content-Type', 'application/json')
+      .send({ summary: result });
+  } catch (error: any) {
+    request.log.error(error);
+    return reply.code(500).send({ error: error.message || "Internal Agent Error" });
+  }
+});
+
+// Direct SSE Stream for web clients or Next.js proxy
+fastify.get('/agent/events', async (request, reply) => {
+  reply.raw.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+  });
+
+  reply.raw.write(': connected\n\n');
+
+  const onAgentUpdate = (event: any) => {
+    reply.raw.write(`event: agent_updates\ndata: ${JSON.stringify(event)}\n\n`);
+  };
+
+  const onDeviceUpdate = (event: any) => {
+    reply.raw.write(`event: device_updates\ndata: ${JSON.stringify(event)}\n\n`);
+  };
+
+  localBus.on('agent_updates', onAgentUpdate);
+  localBus.on('device_updates', onDeviceUpdate);
+
+  const heartbeat = setInterval(() => {
+    reply.raw.write(': heartbeat\n\n');
+  }, 15000);
+
+  request.raw.on('close', () => {
+    clearInterval(heartbeat);
+    localBus.off('agent_updates', onAgentUpdate);
+    localBus.off('device_updates', onDeviceUpdate);
+  });
 });
 
 const start = async () => {

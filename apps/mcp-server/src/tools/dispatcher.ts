@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MCP_TOOLS } from '../schemas/tools.js';
+import { publishDeviceEvent } from '../pubsub/redis.js';
 
 // Global In-Memory State Store for Home and Devices
 export interface HomeZoneState {
@@ -219,6 +220,13 @@ export async function executeTool(name: string, input: any): Promise<Record<stri
         zone.lightingMode = 'warm_ambient';
       }
 
+      publishDeviceEvent({
+        type: 'device_state_changed',
+        timestamp: new Date().toISOString(),
+        device: zone.zoneId,
+        state: zone,
+      });
+
       return {
         status: 'applied',
         zone: zone.zoneId,
@@ -273,6 +281,13 @@ export async function executeTool(name: string, input: any): Promise<Record<stri
       };
       stateManager.playback.set(validArgs.zoneId, playbackState);
 
+      publishDeviceEvent({
+        type: 'media_playback_started',
+        timestamp: new Date().toISOString(),
+        device: validArgs.zoneId,
+        state: playbackState,
+      });
+
       return {
         contentId: playbackState.activeMediaId,
         title: playbackState.title,
@@ -287,6 +302,12 @@ export async function executeTool(name: string, input: any): Promise<Record<stri
       const playback = stateManager.playback.get(validArgs.zoneId);
       if (playback) {
         playback.status = 'paused';
+        publishDeviceEvent({
+          type: 'media_playback_stopped',
+          timestamp: new Date().toISOString(),
+          device: validArgs.zoneId,
+          state: playback,
+        });
       }
       return {
         status: 'paused',
