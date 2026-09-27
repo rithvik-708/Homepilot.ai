@@ -1,0 +1,39 @@
+{
+  "name": "homepilot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "db:generate": "pnpm --filter mcp-server db:generate",
+    "db:push": "pnpm --filter mcp-server db:push",
+    "db:check": "pnpm --filter mcp-server db:check",
+    "db:studio": "pnpm --filter mcp-server db:studio",
+    "drizzle-kit": "pnpm --filter mcp-server exec drizzle-kit",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.6.0",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@12.6.0",
+  "type": "module",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.11",
+    "eslint": "^10.11.0",
+    "turbo": "^2.11.4"
+  }
+}
