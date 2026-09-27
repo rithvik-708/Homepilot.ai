@@ -1,44 +1,38 @@
 import { db } from '../db/index.js';
 import { agentRuns, agentToolCalls } from '../db/schema.js';
-import { BedrockProvider } from './providers/BedrockProvider.js';
-import { OllamaProvider } from './providers/OllamaProvider.js';
+import { AgentProvider } from './providers/AgentProvider.js';
+import { createProvider } from './providers/index.js';
 import { executeTool } from '../tools/dispatcher.js';
 import { Message, ToolResultBlock } from '@aws-sdk/client-bedrock-runtime';
 import { eq } from 'drizzle-orm';
 
-export interface LLMProvider {
-  invoke(messages: Message[]): Promise<Message | undefined>;
-}
-
 export interface OrchestratorOptions {
   useLocal?: boolean;
-  provider?: LLMProvider;
+  provider?: AgentProvider;
   skipDbLogging?: boolean;
   maxIterations?: number;
 }
 
 export class AgentOrchestrator {
-  private provider: LLMProvider;
+  private provider: AgentProvider;
   private modelId: string;
   private skipDbLogging: boolean;
   private maxIterations: number;
 
   constructor(options: OrchestratorOptions | boolean = false) {
     if (typeof options === 'boolean') {
-      this.provider = options ? new OllamaProvider() : new BedrockProvider();
-      this.modelId = options ? 'llama3.2:3b' : 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+      // Legacy boolean support, defaults to created provider
+      this.provider = createProvider();
+      this.modelId = process.env.AI_PROVIDER || 'nim';
       this.skipDbLogging = false;
       this.maxIterations = 10;
     } else {
       if (options.provider) {
         this.provider = options.provider;
         this.modelId = 'custom-mock-provider';
-      } else if (options.useLocal) {
-        this.provider = new OllamaProvider();
-        this.modelId = 'llama3.2:3b';
       } else {
-        this.provider = new BedrockProvider();
-        this.modelId = 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+        this.provider = createProvider();
+        this.modelId = process.env.AI_PROVIDER || 'nim';
       }
       this.skipDbLogging = options.skipDbLogging || false;
       this.maxIterations = options.maxIterations || 10;

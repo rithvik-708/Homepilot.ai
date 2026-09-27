@@ -1,7 +1,8 @@
 import { Message } from '@aws-sdk/client-bedrock-runtime';
 import { MCP_TOOLS } from '../../schemas/tools.js';
+import { AgentProvider } from './AgentProvider.js';
 
-export class OllamaProvider {
+export class OllamaProvider implements AgentProvider {
   private baseUrl: string;
   private model: string;
 

@@ -149,9 +149,8 @@ describe('AgentOrchestrator Scenario Test Suites', () => {
   });
 
   it('Scenario 3: Error Recovery and Budget Guardrail', async () => {
-    const orchestrator = new AgentOrchestrator({ skipDbLogging: true });
-
-    // Test budget rejection guardrail
+    const mockProvider = { invoke: vi.fn() };
+    const orchestrator = new AgentOrchestrator({ provider: mockProvider, skipDbLogging: true });
     const budgetExceededResult = await orchestrator.routeToolCall('media_launch_playback', {
       budget: 2500,
       mediaId: 'expensive_movie',
@@ -173,9 +172,8 @@ describe('AgentOrchestrator Scenario Test Suites', () => {
   });
 
   it('Direct Tool Routing Coverage', async () => {
-    const orchestrator = new AgentOrchestrator({ skipDbLogging: true });
-
-    // Test home state
+    const mockProvider = { invoke: vi.fn() };
+    const orchestrator = new AgentOrchestrator({ provider: mockProvider, skipDbLogging: true });
     const state = await orchestrator.routeToolCall('home_get_state', { zoneId: 'living_room' });
     expect(state.temperature).toBe(24);
 

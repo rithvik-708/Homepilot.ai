@@ -1,7 +1,8 @@
 import { BedrockRuntimeClient, ConverseCommand, Tool, Message } from '@aws-sdk/client-bedrock-runtime';
 import { MCP_TOOLS } from '../../schemas/tools.js';
+import { AgentProvider } from './AgentProvider.js';
 
-export class BedrockProvider {
+export class BedrockProvider implements AgentProvider {
   private client: BedrockRuntimeClient;
   private modelId = 'anthropic.claude-3-5-sonnet-20241022-v2:0'; // Recommended AWS Builder model
 
