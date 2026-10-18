@@ -9,7 +9,8 @@ import { AgentProvider } from './AgentProvider.js';
  */
 export class AutonomousToolPlannerProvider implements AgentProvider {
   public async invoke(messages: Message[]): Promise<Message | undefined> {
-    const userPrompt = messages[0]?.content?.[0]?.text || '';
+    const userMsg = messages.find((m) => (m.role as string) === 'user');
+    const userPrompt = userMsg?.content?.[0]?.text || '';
     const lower = userPrompt.toLowerCase();
 
     // Check last assistant message and tool results in the conversation

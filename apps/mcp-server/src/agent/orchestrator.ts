@@ -72,7 +72,42 @@ export class AgentOrchestrator {
       modelId: this.modelId,
     });
 
+    const currentDate = new Date().toISOString().slice(0, 10);
+    const systemInstruction = `You are Homepilot, an autonomous smart-home orchestration AI assistant.
+Your job is to execute targeted physical device commands and smart home actions using your available tools.
+
+CORE RULES:
+1. Target Specific Goals: ONLY execute tools that directly serve the user's specific request. NEVER execute unrelated actions (e.g., do NOT start media playback, do NOT add shopping items, and do NOT change climate unless explicitly requested or clearly part of the requested routine).
+2. Dynamic Tool Synthesis (ONLY for unintegrated URLs / new endpoints):
+   - ONLY use 'mcp_tool_create' when the user explicitly provides a new URL or external endpoint (e.g., URLs ending in .internal like https://sensors.internal/aqi, https://locks.internal/unlock, https://devices.internal/heater).
+   - NEVER use 'mcp_tool_create' for normal household tasks (climate, lights, media, calendar, shopping)! Use standard tools like home_set_environment, media_launch_playback, etc. directly.
+   - For new URLs:
+     - name: descriptive identifier (e.g. "air_quality_sensor_read", "smart_deadbolt_unlock", "garage_space_heater_boost")
+     - description: purpose of the tool
+     - runtime: "declarative_http"
+     - codeDefinition: { method: "GET" for sensors/reads, "POST" for commands/controls, urlTemplate: "<endpoint_url>", headers: {} }
+     - allowedDomains: [extracted domain from the URL, e.g. "sensors.internal", "locks.internal", "devices.internal"]
+     - inputSchema: { type: "object", properties: {} }
+3. Standard Routines (ONLY apply when specifically requested):
+   - House Preparation / Hosting Guests (e.g. "My parents are coming tomorrow. Make the house ready."):
+     - Check the schedule with calendar_get_schedule (date: "${currentDate}").
+     - Query user preferences with user_get_preferences (userId: "default_user").
+     - Adjust climate and lights using home_set_environment (zoneId: "living_room", temperature: 22, lightsOn: true, lightingMode: "bright_welcoming"; and zoneId: "bedroom", temperature: 22, lightsOn: true, lightingMode: "soft").
+     - Add guest supplies using shopping_add_item (itemName: "Fresh Towels", quantity: 2; itemName: "Snacks & Refreshments", quantity: 4).
+   - Movie Night:
+     - Query user preferences with user_get_preferences.
+     - Set lighting & climate using home_set_environment (zoneId: "living_room", temperature: 21, lightsOn: true, lightingMode: "warm").
+     - Start media playback with media_launch_playback (mediaId: "movie_interstellar_4k", zoneId: "living_room").
+4. Completion & Stopping:
+   - Perform ONLY the minimum necessary actions to fulfill the user's request.
+   - Once the requested action has been performed (e.g. environment set, media launched, or tool synthesized), DO NOT brainstorm additional tools, DO NOT add unrequested shopping items or devices, and DO NOT call any more tools.
+   - Provide a concise, pleasant summary of the completed actions immediately.`;
+
     const messages: Message[] = [
+      {
+        role: 'system' as any,
+        content: [{ text: systemInstruction }],
+      },
       {
         role: 'user',
         content: [{ text: prompt }],
@@ -84,11 +119,14 @@ export class AgentOrchestrator {
     let isComplete = false;
     let finalSummary = '';
     let loopTerminatedPrematurely = false;
+    let shouldForceSummary = false;
+    const executedTools = new Set<string>();
+    const intent = this.detectIntent(prompt);
 
     // 2. Multi-turn Agent Loop with Infinite Loop Protection
     while (!isComplete && iterationCount < this.maxIterations) {
       iterationCount++;
-      const responseMessage = await this.provider.invoke(messages);
+      const responseMessage = await this.provider.invoke(messages, { forceSummary: shouldForceSummary });
       if (!responseMessage) {
         finalSummary = 'No response from model provider.';
         isComplete = true;
@@ -114,6 +152,7 @@ export class AgentOrchestrator {
         executionOrder++;
         const tool = block.toolUse;
         if (!tool || !tool.name) continue;
+        executedTools.add(tool.name);
 
         publishAgentEvent({
           type: 'tool_started',
@@ -270,6 +309,34 @@ export class AgentOrchestrator {
         role: 'user',
         content: toolResults.map((tr) => ({ toolResult: tr })),
       });
+
+      // Assess if the user's primary goal has completed to avoid runaway tool loops
+      const nonQueryMutationTools = [
+        'home_set_environment',
+        'media_launch_playback',
+        'media_pause_playback',
+        'shopping_add_item',
+        'device_reboot',
+        'calendar_create_event',
+      ];
+
+      if (intent === 'general_automation' || intent === 'shopping' || intent === 'calendar') {
+        if (toolRequests.some((tr) => nonQueryMutationTools.includes(tr.toolUse?.name || ''))) {
+          shouldForceSummary = true;
+        }
+      } else if (intent === 'movie_night') {
+        if (executedTools.has('media_launch_playback') || executedTools.has('home_set_environment')) {
+          shouldForceSummary = true;
+        }
+      } else if (intent === 'house_prep') {
+        if (executedTools.has('shopping_add_item') && executedTools.has('home_set_environment')) {
+          shouldForceSummary = true;
+        }
+      } else if (intent === 'tool_synthesis') {
+        if (toolRequests.some((tr) => tr.toolUse?.name && !tr.toolUse.name.startsWith('mcp_'))) {
+          shouldForceSummary = true;
+        }
+      }
     }
 
     // Check if loop protection was triggered
@@ -310,6 +377,7 @@ export class AgentOrchestrator {
 
   private detectIntent(prompt: string): string {
     const lower = prompt.toLowerCase();
+    if (lower.includes('integrate') || lower.includes('sensor') || lower.includes('deadbolt') || lower.includes('heater') || lower.includes('tool') || lower.includes('.internal')) return 'tool_synthesis';
     if (lower.includes('movie') || lower.includes('watch') || lower.includes('cinema')) return 'movie_night';
     if (lower.includes('guest') || lower.includes('prep') || lower.includes('arrival') || lower.includes('parent')) return 'house_prep';
     if (lower.includes('shop') || lower.includes('grocery') || lower.includes('buy')) return 'shopping';

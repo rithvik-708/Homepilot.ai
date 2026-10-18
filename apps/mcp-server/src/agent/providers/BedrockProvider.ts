@@ -1,6 +1,6 @@
 import { BedrockRuntimeClient, ConverseCommand, Tool, Message } from '@aws-sdk/client-bedrock-runtime';
 import { dynamicRegistry } from '../../tools/dynamic/registry.js';
-import { AgentProvider } from './AgentProvider.js';
+import { AgentProvider, InvokeOptions } from './AgentProvider.js';
 
 export class BedrockProvider implements AgentProvider {
   private client: BedrockRuntimeClient;
@@ -23,15 +23,26 @@ export class BedrockProvider implements AgentProvider {
     }));
   }
 
-  public async invoke(messages: Message[]): Promise<Message | undefined> {
+  public async invoke(messages: Message[], options?: InvokeOptions): Promise<Message | undefined> {
+    const systemMessages = messages.filter(m => (m.role as string) === 'system');
+    const nonSystemMessages = messages.filter(m => (m.role as string) !== 'system');
+
+    let systemConfig: any[] | undefined = undefined;
+    if (systemMessages.length > 0) {
+      systemConfig = systemMessages.map(sm => ({
+        text: typeof sm.content === 'string' ? sm.content : (sm.content?.[0]?.text || '')
+      }));
+    }
+
     const command = new ConverseCommand({
       modelId: this.modelId,
-      messages,
+      system: systemConfig,
+      messages: nonSystemMessages,
       inferenceConfig: {
         maxTokens: 4096,
         temperature: 0.4, // Lower temperature for deterministic planning
       },
-      toolConfig: {
+      toolConfig: options?.forceSummary ? undefined : {
         tools: this.getBedrockTools(),
       },
     });

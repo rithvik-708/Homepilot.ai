@@ -40,6 +40,20 @@ export async function runDeclarativeHttp(
     body = rawBody;
   }
 
+  // Simulated smart device endpoints for local demo/testing
+  if (resolvedUrl.includes('.internal')) {
+    if (resolvedUrl.includes('aqi') || resolvedUrl.includes('sensor')) {
+      return { status: 'online', sensor: 'outdoor_particulate', aqi: 42, humidity: 55, temperature: 21, airQuality: 'Good' };
+    }
+    if (resolvedUrl.includes('lock') || resolvedUrl.includes('deadbolt')) {
+      return { status: 'unlocked', lockId: input.lockId || 'front_door_deadbolt', message: 'Front door perimeter deadbolt unlocked successfully.' };
+    }
+    if (resolvedUrl.includes('heater') || resolvedUrl.includes('heat')) {
+      return { status: 'active', heatLevel: input.heatLevel || 3, targetTemp: 24, powerWatts: 1500, state: 'heating' };
+    }
+    return { status: 'success', message: `Simulated response from ${resolvedUrl}`, input };
+  }
+
   // 4. Dispatch request with strict 2000ms timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 2000);

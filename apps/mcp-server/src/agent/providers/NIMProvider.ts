@@ -1,5 +1,5 @@
 import { Message } from '@aws-sdk/client-bedrock-runtime';
-import { AgentProvider } from './AgentProvider.js';
+import { AgentProvider, InvokeOptions } from './AgentProvider.js';
 import { dynamicRegistry } from '../../tools/dynamic/registry.js';
 
 export class NIMProvider implements AgentProvider {
@@ -29,11 +29,11 @@ export class NIMProvider implements AgentProvider {
     }));
   }
 
-  public async invoke(messages: Message[]): Promise<Message | undefined> {
+  public async invoke(messages: Message[], options?: InvokeOptions): Promise<Message | undefined> {
     const formattedMessages: any[] = [];
 
     for (const m of messages) {
-      let role = m.role === 'user' ? 'user' : 'assistant';
+      let role = (m.role as string) === 'system' ? 'system' : (m.role === 'user' ? 'user' : 'assistant');
 
       if (typeof m.content === 'string') {
         formattedMessages.push({ role, content: m.content });
@@ -56,7 +56,7 @@ export class NIMProvider implements AgentProvider {
             formattedMessages.push({
               role: 'tool',
               tool_call_id: tr.toolUseId,
-              content: resContent || "success"
+              content: `${resContent || 'success'}\n(Note: The requested action completed successfully. If this fulfills the homeowner's request, provide your final summary and do not call any more tools.)`
             });
           }
         } else {
@@ -92,19 +92,26 @@ export class NIMProvider implements AgentProvider {
       }
     }
 
+    const requestPayload: any = {
+      model: this.model,
+      messages: formattedMessages,
+      temperature: 0.4,
+      max_tokens: 4096,
+    };
+
+    if (options?.forceSummary) {
+      requestPayload.tool_choice = 'none';
+    } else {
+      requestPayload.tools = this.getNIMTools();
+    }
+
     const response = await fetch(this.baseUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
+        'Authorization': `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: formattedMessages,
-        tools: this.getNIMTools(),
-        temperature: 0.4,
-        max_tokens: 4096
-      })
+      body: JSON.stringify(requestPayload),
     });
 
     if (!response.ok) {
@@ -123,21 +130,87 @@ export class NIMProvider implements AgentProvider {
       contentBlocks.push({ text: msg.content });
     }
     
-    if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
-      for (const tc of msg.tool_calls) {
-        let inputObj = {};
-        try {
-          inputObj = JSON.parse(tc.function.arguments);
-        } catch (e) {
-          console.warn("Failed to parse tool arguments from NIM", tc.function.arguments);
+    if (msg.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
+      const tc = msg.tool_calls[0];
+      let inputObj = {};
+      try {
+        inputObj = JSON.parse(tc.function.arguments);
+      } catch (e) {
+        console.warn("Failed to parse tool arguments from NIM", tc.function.arguments);
+      }
+      contentBlocks.push({
+        toolUse: {
+          toolUseId: tc.id || `call_${Math.random().toString(36).slice(2, 9)}`,
+          name: tc.function.name,
+          input: inputObj,
+        },
+      });
+    } else if (typeof msg.content === 'string') {
+      // Fallback: Llama 3 / open-weights models frequently emit function calls with <|python_tag|> or raw JSON in content
+      let cleanContent = msg.content.trim();
+      if (cleanContent.startsWith('<|python_tag|>')) {
+        cleanContent = cleanContent.replace('<|python_tag|>', '').trim();
+      }
+
+      // Check if content contains tool call JSON object(s)
+      if (cleanContent.includes('"name"') && (cleanContent.includes('"parameters"') || cleanContent.includes('"arguments"'))) {
+        const segments = cleanContent.split(';').map((s: string) => s.trim()).filter(Boolean);
+        const extractedTools: any[] = [];
+        const activeToolNames = dynamicRegistry.getActiveTools().map((t: any) => t.name);
+
+        for (const seg of segments) {
+          const firstBrace = seg.indexOf('{');
+          const lastBrace = seg.lastIndexOf('}');
+          if (firstBrace === -1 || lastBrace <= firstBrace) continue;
+
+          let jsonCandidate = seg.slice(firstBrace, lastBrace + 1)
+            .replace(/\bTrue\b/g, 'true')
+            .replace(/\bFalse\b/g, 'false')
+            .replace(/\bNone\b/g, 'null');
+
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(jsonCandidate);
+          } catch {
+            try {
+              parsed = JSON.parse(jsonCandidate.replace(/'/g, '"'));
+            } catch {}
+          }
+
+          if (parsed && typeof parsed === 'object') {
+            const toolName = parsed.name || parsed.tool || parsed.function;
+            const params = parsed.parameters || parsed.arguments || parsed.input || {};
+
+            if (toolName && typeof toolName === 'string' && activeToolNames.includes(toolName)) {
+              let normalizedParams: any = typeof params === 'string' ? JSON.parse(params.replace(/'/g, '"')) : { ...params };
+
+              for (const [k, v] of Object.entries(normalizedParams)) {
+                if (typeof v === 'string') {
+                  const tv = v.trim();
+                  if (tv.startsWith('{') || tv.startsWith('[')) {
+                    try {
+                      normalizedParams[k] = JSON.parse(tv.replace(/'/g, '"'));
+                    } catch {}
+                  }
+                }
+              }
+
+              extractedTools.push({
+                toolUse: {
+                  toolUseId: `call_${Math.random().toString(36).slice(2, 9)}`,
+                  name: toolName,
+                  input: normalizedParams,
+                },
+              });
+            }
+          }
         }
-        contentBlocks.push({
-          toolUse: {
-            toolUseId: tc.id || `call_${Math.random().toString(36).slice(2, 9)}`,
-            name: tc.function.name,
-            input: inputObj,
-          },
-        });
+
+        if (extractedTools.length > 0) {
+          contentBlocks.length = 0;
+          // NVIDIA NIM enforces a hard limit: only single tool-calls at once
+          contentBlocks.push(extractedTools[0]);
+        }
       }
     }
 

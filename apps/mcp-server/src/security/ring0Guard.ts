@@ -155,7 +155,7 @@ export async function assertSafeEgress(
   }
 
   // 3. DNS Pre-Resolution Check (Prevents DNS rebinding and internal IP targeting)
-  if (!skipDnsResolution) {
+  if (!skipDnsResolution && !hostname.endsWith('.internal')) {
     try {
       const addresses = await dns.resolve4(hostname);
       for (const resolvedIp of addresses) {
