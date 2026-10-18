@@ -12,96 +12,110 @@ type ExecutionCardProps = {
   connected: boolean;
 };
 
-const CONVERSATIONAL_ACTIONS: Record<
+// Conversational first-person mapping for raw backend actions
+export const TOOL_LABELS: Record<
   string,
-  { running: string; completed: string; failed: string }
+  { completed: string; running: string; failed: string }
 > = {
   home_set_environment: {
-    running: 'Adjusting climate and lighting...',
-    completed: 'Set room climate and lighting',
-    failed: 'Could not adjust room climate',
+    completed: "I've set the living room to 21°C and adjusted the lighting",
+    running: "I'm adjusting the living room climate and lighting...",
+    failed: "I couldn't adjust the climate and lighting",
   },
   home_get_state: {
-    running: 'Checking room climate and lights...',
-    completed: 'Checked current room conditions',
-    failed: 'Could not read room conditions',
+    completed: "I've checked the current room temperatures and lights",
+    running: "I'm checking the room temperatures and lights...",
+    failed: "I couldn't read the room conditions",
   },
   media_launch_playback: {
-    running: 'Starting media playback on Fire TV...',
-    completed: 'Playing movie on Fire TV',
-    failed: 'Could not launch media stream',
+    completed: "I've started playback on Fire TV",
+    running: "I'm launching your stream on Fire TV...",
+    failed: "I couldn't launch playback on Fire TV",
   },
   media_pause_playback: {
-    running: 'Pausing media playback...',
-    completed: 'Paused Fire TV playback',
-    failed: 'Could not pause media stream',
+    completed: "I've paused Fire TV playback",
+    running: "I'm pausing Fire TV playback...",
+    failed: "I couldn't pause playback on Fire TV",
   },
   calendar_get_schedule: {
-    running: 'Reviewing your calendar schedule...',
-    completed: 'Checked your household schedule',
-    failed: 'Could not read calendar schedule',
+    completed: "I've checked your household calendar schedule",
+    running: "I'm reviewing your calendar schedule...",
+    failed: "I couldn't read your calendar schedule",
   },
   calendar_create_event: {
-    running: 'Adding appointment to your calendar...',
-    completed: 'Added new calendar appointment',
-    failed: 'Could not create calendar event',
+    completed: "I've added the event to your calendar",
+    running: "I'm scheduling the event on your calendar...",
+    failed: "I couldn't create the calendar event",
   },
   shopping_get_list: {
-    running: 'Reviewing your shopping list...',
-    completed: 'Checked your current shopping list',
-    failed: 'Could not retrieve shopping items',
+    completed: "I've retrieved your shopping list",
+    running: "I'm reviewing your shopping list...",
+    failed: "I couldn't fetch your shopping list",
   },
   shopping_add_item: {
-    running: 'Adding supplies to your shopping list...',
-    completed: 'Updated your shopping list with new items',
-    failed: 'Could not update shopping list',
+    completed: "I've added the requested items to your shopping list",
+    running: "I'm adding items to your shopping list...",
+    failed: "I couldn't update the shopping list",
   },
   mcp_tool_create: {
-    running: 'Configuring new device integration...',
-    completed: 'Integrated new smart device',
-    failed: 'Device integration failed security check',
+    completed: "I've configured and connected the new smart device",
+    running: "I'm setting up the new smart device...",
+    failed: "The device setup failed security checks",
   },
   mcp_tool_test: {
-    running: 'Verifying device safety in sandbox...',
-    completed: 'Tested device safety response',
-    failed: 'Device sandbox test failed',
+    completed: "I've verified the device safety in the sandbox",
+    running: "I'm testing the device safety in the sandbox...",
+    failed: "The device sandbox test failed",
+  },
+  mcp_tool_delete: {
+    completed: "I've removed the device integration",
+    running: "I'm removing the device integration...",
+    failed: "I couldn't remove the device integration",
   },
   device_reboot: {
-    running: 'Rebooting smart device...',
-    completed: 'Restarted device successfully',
-    failed: 'Device reboot failed',
+    completed: "I've restarted the smart device",
+    running: "I'm restarting the smart device...",
+    failed: "I couldn't restart the smart device",
   },
   device_get_info: {
-    running: 'Reading device diagnostics...',
-    completed: 'Retrieved device diagnostics',
-    failed: 'Could not read device diagnostics',
+    completed: "I've retrieved the device details",
+    running: "I'm reading the device details...",
+    failed: "I couldn't retrieve device details",
   },
   user_get_preferences: {
-    running: 'Applying your personalized preferences...',
-    completed: 'Loaded your household preferences',
-    failed: 'Could not load user preferences',
+    completed: "I've loaded your personalized home preferences",
+    running: "I'm reading your home preferences...",
+    failed: "I couldn't load your preferences",
+  },
+  user_update_preferences: {
+    completed: "I've updated your home preferences",
+    running: "I'm saving your home preferences...",
+    failed: "I couldn't update your preferences",
   },
 };
 
-function formatConversationalStep(text: string, status: 'running' | 'completed' | 'failed' | 'suspended') {
-  for (const [toolKey, mapping] of Object.entries(CONVERSATIONAL_ACTIONS)) {
+function formatConversationalStep(
+  text: string,
+  status: 'running' | 'completed' | 'failed' | 'suspended'
+) {
+  for (const [toolKey, label] of Object.entries(TOOL_LABELS)) {
     if (text.includes(toolKey)) {
-      if (status === 'running') return mapping.running;
-      if (status === 'completed') return mapping.completed;
-      if (status === 'failed') return mapping.failed;
+      if (status === 'running') return label.running;
+      if (status === 'failed') return label.failed;
+      return label.completed;
     }
   }
 
-  // Friendly fallback formatting
-  let clean = text
+  // Friendly first-person fallback
+  const clean = text
     .replace('Running ', '')
     .replace('Completed ', '')
     .replace('Failed ', '')
     .replace(/_/g, ' ');
 
-  if (status === 'running') return `Working on ${clean}...`;
-  if (status === 'completed') return `Completed ${clean}`;
-  return clean;
+  if (status === 'running') return `I'm working on ${clean}...`;
+  if (status === 'failed') return `I couldn't complete ${clean}`;
+  return `I've completed ${clean}`;
 }
 
 function formatIntentLabel(intent: string) {
@@ -110,7 +124,7 @@ function formatIntentLabel(intent: string) {
     house_prep: 'Hosting Guests',
     shopping: 'Shopping List',
     calendar: 'Calendar Event',
-    tool_synthesis: 'Device Integration',
+    tool_synthesis: 'Device Setup',
     general_automation: 'Smart Home Routine',
   };
   return map[intent] || intent.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -118,7 +132,7 @@ function formatIntentLabel(intent: string) {
 
 export function ExecutionCard({ intent, steps, connected }: ExecutionCardProps) {
   return (
-    <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 flex flex-col h-full overflow-hidden shadow-sm">
+    <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-2xl p-5 flex flex-col h-full overflow-hidden shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -141,10 +155,10 @@ export function ExecutionCard({ intent, steps, connected }: ExecutionCardProps) 
         </div>
       </div>
 
-      {/* Goal Pill */}
+      {/* Goal Pill (Soft pastel styling without glowing shadows) */}
       <div className="mb-4">
         {intent ? (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-800/80 text-zinc-200 text-xs font-medium border border-zinc-700/50">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-800/80 text-zinc-200 text-xs font-medium border border-zinc-700/40">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
             <span>{formatIntentLabel(intent)}</span>
           </div>
@@ -169,6 +183,7 @@ export function ExecutionCard({ intent, steps, connected }: ExecutionCardProps) 
                 key={step.id}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.2 }}
                 className={`p-3 rounded-xl border flex items-start gap-2.5 transition-colors ${
                   isRunning

@@ -16,7 +16,7 @@ export function CommandCenter() {
   const agentStream = useAgentStream();
   const [input, setInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'home' | 'settings'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'settings'>('home');
 
   const handleCommand = async (command: string) => {
     if (!command.trim()) return;
@@ -57,15 +57,14 @@ export function CommandCenter() {
           </div>
         </div>
 
-        {/* Center Tabs: My Home & Settings */}
+        {/* Center Pill Tabs: My Home & Settings */}
         <div className="flex items-center self-start sm:self-center bg-zinc-950/60 p-1 rounded-xl border border-zinc-800/60">
           <button
-            onClick={() => setActiveTab('home')}
-            className={`relative flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === 'home' ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
-            }`}
+            onClick={() => setActiveView('home')}
+            className={`relative flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${activeView === 'home' ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
+              }`}
           >
-            {activeTab === 'home' && (
+            {activeView === 'home' && (
               <motion.div
                 layoutId="activeTabBadge"
                 className="absolute inset-0 bg-zinc-800 rounded-lg shadow-sm"
@@ -79,12 +78,11 @@ export function CommandCenter() {
           </button>
 
           <button
-            onClick={() => setActiveTab('settings')}
-            className={`relative flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === 'settings' ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
-            }`}
+            onClick={() => setActiveView('settings')}
+            className={`relative flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${activeView === 'settings' ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
+              }`}
           >
-            {activeTab === 'settings' && (
+            {activeView === 'settings' && (
               <motion.div
                 layoutId="activeTabBadge"
                 className="absolute inset-0 bg-zinc-800 rounded-lg shadow-sm"
@@ -100,18 +98,18 @@ export function CommandCenter() {
 
         {/* Calm System Status Indicator */}
         <div className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-zinc-400">
-          <span
+          {/* <span
             className={`w-2 h-2 rounded-full ${
               agentStream.connected ? 'bg-emerald-400' : 'bg-rose-400'
             }`}
           />
-          <span>{agentStream.connected ? 'System Ready' : 'Connecting...'}</span>
+          <span>{agentStream.connected ? 'System Ready' : 'Connecting...'}</span> */}
         </div>
       </header>
 
       {/* Main Tab Views */}
       <AnimatePresence mode="wait">
-        {activeTab === 'home' ? (
+        {activeView === 'home' ? (
           <motion.main
             key="home-tab"
             initial={{ opacity: 0, y: 6 }}
@@ -123,7 +121,7 @@ export function CommandCenter() {
             {/* Left Column (3 Columns): Command & Assistant */}
             <div className="lg:col-span-3 flex flex-col gap-5">
               {/* Command Box */}
-              <section className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+              <section className="bg-zinc-900/60 border border-zinc-800/50 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();

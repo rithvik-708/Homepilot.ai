@@ -8,7 +8,7 @@ export interface ConsequenceContractCardProps {
   toolName: string;
   plainTitle: string;
   consequenceSummary: string;
-  safetyRules: string[];
+  safetyRules?: string[];
   onDecide?: (decision: 'approved' | 'rejected') => void;
 }
 
@@ -17,7 +17,6 @@ export const ConsequenceContractCard: React.FC<ConsequenceContractCardProps> = (
   toolName,
   plainTitle,
   consequenceSummary,
-  safetyRules,
   onDecide,
 }) => {
   const [submitting, setSubmitting] = useState(false);
@@ -47,16 +46,6 @@ export const ConsequenceContractCard: React.FC<ConsequenceContractCardProps> = (
       setSubmitting(false);
     }
   };
-
-  // Filter out any technical jargon from rules if backend sent raw technical string
-  const cleanRules = safetyRules
-    .map((r) =>
-      r
-        .replace(/Class \d+ (HITL|Clearance)/gi, 'High Security Verification')
-        .replace(/Ed25519 cryptographic token/gi, 'Verified Security Signature')
-        .replace(/egress domain locks?:?/gi, 'Locked to verified device:')
-    )
-    .filter(Boolean);
 
   if (decisionMade === 'approved') {
     return (
@@ -91,8 +80,8 @@ export const ConsequenceContractCard: React.FC<ConsequenceContractCardProps> = (
   }
 
   return (
-    <div className="border border-amber-500/30 bg-zinc-900/95 rounded-2xl p-4 shadow-lg text-white">
-      {/* Header */}
+    <div className="border border-zinc-700/40 bg-zinc-900/95 rounded-2xl p-4 shadow-xl text-white">
+      {/* OS-Style Header */}
       <div className="flex items-start gap-3 mb-3">
         <div className="p-2 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20 shrink-0">
           <Lock className="w-4 h-4" />
@@ -107,29 +96,13 @@ export const ConsequenceContractCard: React.FC<ConsequenceContractCardProps> = (
         </div>
       </div>
 
-      {/* Plain-English Summary */}
-      <div className="text-xs text-zinc-300 mb-3 leading-relaxed bg-zinc-950/50 p-3 rounded-xl border border-zinc-800/60">
+      {/* Plain-English Consequence Summary (No Checklists or Technical Jargon) */}
+      <div className="text-xs text-zinc-300 mb-4 leading-relaxed bg-zinc-950/50 p-3 rounded-xl border border-zinc-800/60">
         {consequenceSummary ||
-          'Homepilot is requesting your permission to operate a sensitive physical home control.'}
+          'Homepilot is requesting your permission to operate a physical security or high-wattage home device.'}
       </div>
 
-      {/* Safety Assurances */}
-      {cleanRules.length > 0 && (
-        <div className="rounded-xl p-2.5 mb-3.5 bg-zinc-950/30 border border-zinc-800/40 text-[11px] space-y-1.5 text-zinc-400">
-          <div className="font-semibold text-zinc-300 text-[10px] uppercase tracking-wider flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Safety Protections Active:</span>
-          </div>
-          {cleanRules.map((rule, idx) => (
-            <div key={idx} className="flex items-start gap-2 pl-0.5">
-              <Check className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
-              <span className="text-zinc-300 text-[11px] leading-snug">{rule}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Action Buttons */}
+      {/* Clean iOS/Android-Style Action Buttons */}
       <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800/60">
         <button
           onClick={() => handleDecision('rejected')}

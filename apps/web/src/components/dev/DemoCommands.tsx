@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Flame, Wind, Plus, ExternalLink, ShieldCheck, Play } from 'lucide-react';
+import { Lock, Flame, Wind, Plus, Play } from 'lucide-react';
 
 interface DevicePreset {
   id: string;
@@ -10,6 +10,7 @@ interface DevicePreset {
   endpoint: string;
   description: string;
   prompt: string;
+  buttonLabel: string;
   permissionLevel: 'Requires Approval' | 'Instant Setup';
   icon: typeof Lock;
 }
@@ -22,6 +23,7 @@ const DEVICE_PRESETS: DevicePreset[] = [
     endpoint: 'https://locks.internal/unlock',
     description: 'Physical front door locking and unlocking control.',
     prompt: 'I installed a new Yale Smart Deadbolt at https://locks.internal/unlock. Integrate it as a tool and unlock the front door.',
+    buttonLabel: 'Connect New Smart Lock',
     permissionLevel: 'Requires Approval',
     icon: Lock,
   },
@@ -32,6 +34,7 @@ const DEVICE_PRESETS: DevicePreset[] = [
     endpoint: 'https://devices.internal/heater',
     description: 'High-wattage secondary thermal heater relay control.',
     prompt: 'Connect to the high-wattage garage space heater at https://devices.internal/heater and turn on max heat.',
+    buttonLabel: 'Pair Space Heater',
     permissionLevel: 'Requires Approval',
     icon: Flame,
   },
@@ -42,6 +45,7 @@ const DEVICE_PRESETS: DevicePreset[] = [
     endpoint: 'https://sensors.internal/aqi',
     description: 'Real-time air particulate and AQI index monitor.',
     prompt: 'Connect to the outdoor particulate sensor at https://sensors.internal/aqi and report current AQI index.',
+    buttonLabel: 'Pair Climate Sensor',
     permissionLevel: 'Instant Setup',
     icon: Wind,
   },
@@ -66,7 +70,7 @@ export function DeviceIntegrations({
   return (
     <div className="flex flex-col gap-6">
       {/* Header Info */}
-      <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 shadow-sm">
+      <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center gap-2.5 mb-2">
           <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
             <Plus className="w-4 h-4" />
@@ -86,7 +90,7 @@ export function DeviceIntegrations({
             value={customUrl}
             onChange={(e) => setCustomUrl(e.target.value)}
             placeholder="Enter device URL (e.g. https://sensors.internal/aqi)"
-            className="flex-1 bg-zinc-950/70 border border-zinc-800/80 rounded-xl px-4 py-2.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+            className="flex-1 bg-zinc-950/70 border border-zinc-800/70 rounded-xl px-4 py-2.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
             disabled={isLoading}
           />
           <button
@@ -103,9 +107,9 @@ export function DeviceIntegrations({
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
           <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            Sample Integrations
+            Smart Home Integrations
           </span>
-          <span className="text-[11px] text-zinc-500">Tap to auto-synthesize & test</span>
+          <span className="text-[11px] text-zinc-500">Tap to pair and test device</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -116,7 +120,7 @@ export function DeviceIntegrations({
             return (
               <div
                 key={device.id}
-                className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-5 flex flex-col justify-between hover:border-zinc-700/60 transition-all duration-200 shadow-sm"
+                className="bg-zinc-900/60 border border-zinc-800/50 rounded-2xl p-5 flex flex-col justify-between hover:border-zinc-700/60 transition-all duration-200 shadow-sm"
               >
                 <div>
                   <div className="flex items-start justify-between mb-3">
@@ -146,10 +150,10 @@ export function DeviceIntegrations({
                 <button
                   onClick={() => onCommand(device.prompt)}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-medium transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-medium transition-colors disabled:opacity-50"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Integrate Device</span>
+                  <span>{device.buttonLabel}</span>
                 </button>
               </div>
             );
