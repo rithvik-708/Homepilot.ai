@@ -105,22 +105,65 @@ export class NIMProvider implements AgentProvider {
       requestPayload.tools = this.getNIMTools();
     }
 
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(requestPayload),
-    });
+    const maxRetries = 1;
+    let data: any = null;
 
-    if (!response.ok) {
-        let errText = '';
-        try { errText = await response.text(); } catch(e){}
-        throw new Error(`NVIDIA NIM connection failed: ${response.status} ${response.statusText} ${errText}`);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeoutMs = parseInt(process.env.NVIDIA_NIM_TIMEOUT_MS || '45000', 10);
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const response = await fetch(this.baseUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify(requestPayload),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errText = '';
+          try { errText = await response.text(); } catch (e) {}
+
+          if ([502, 503, 504, 429].includes(response.status) && attempt < maxRetries) {
+            console.warn(
+              `[NIMProvider] Upstream ${response.status} ${response.statusText}. Retrying in 2s (attempt ${attempt + 1}/${maxRetries})...`
+            );
+            await new Promise((r) => setTimeout(r, 2000));
+            continue;
+          }
+
+          throw new Error(`NVIDIA NIM connection failed: ${response.status} ${response.statusText} ${errText}`);
+        }
+
+        data = (await response.json()) as any;
+        break;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+
+        if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+          if (attempt < maxRetries) {
+            console.warn(`[NIMProvider] Request timed out after ${timeoutMs / 1000}s. Retrying once...`);
+            await new Promise((r) => setTimeout(r, 1500));
+            continue;
+          }
+          throw new Error(
+            `NVIDIA NIM inference timed out after ${timeoutMs / 1000}s. Upstream NVIDIA cloud is experiencing heavy load. Please try again or switch to local/Bedrock provider.`
+          );
+        }
+
+        if (attempt >= maxRetries) {
+          throw err;
+        }
+      }
     }
 
-    const data = (await response.json()) as any;
+    if (!data) return undefined;
     const msg = data.choices?.[0]?.message;
 
     if (!msg) return undefined;

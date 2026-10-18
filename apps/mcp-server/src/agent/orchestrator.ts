@@ -124,14 +124,15 @@ CORE RULES:
     const intent = this.detectIntent(prompt);
 
     // 2. Multi-turn Agent Loop with Infinite Loop Protection
-    while (!isComplete && iterationCount < this.maxIterations) {
-      iterationCount++;
-      const responseMessage = await this.provider.invoke(messages, { forceSummary: shouldForceSummary });
-      if (!responseMessage) {
-        finalSummary = 'No response from model provider.';
-        isComplete = true;
-        break;
-      }
+    try {
+      while (!isComplete && iterationCount < this.maxIterations) {
+        iterationCount++;
+        const responseMessage = await this.provider.invoke(messages, { forceSummary: shouldForceSummary });
+        if (!responseMessage) {
+          finalSummary = 'No response from model provider.';
+          isComplete = true;
+          break;
+        }
 
       messages.push(responseMessage); // Add assistant response to history
 
@@ -337,38 +338,71 @@ CORE RULES:
           shouldForceSummary = true;
         }
       }
-    }
-
-    // Check if loop protection was triggered
-    if (iterationCount >= this.maxIterations && !isComplete) {
-      loopTerminatedPrematurely = true;
-      finalSummary = `Execution stopped: Maximum iteration limit of ${this.maxIterations} reached.`;
-    }
-
-    // 5. Finalize DB Trace
-    if (runId && !this.skipDbLogging) {
-      try {
-        await db
-          .update(agentRuns)
-          .set({
-            executionStatus: loopTerminatedPrematurely ? 'max_iterations_exceeded' : 'completed',
-            latencyMs: Date.now() - startTime,
-          })
-          .where(eq(agentRuns.id, runId));
-      } catch (dbError) {
-        console.warn('[AgentOrchestrator] DB telemetry finalize error:', dbError);
       }
+
+      // Check if loop protection was triggered
+      if (iterationCount >= this.maxIterations && !isComplete) {
+        loopTerminatedPrematurely = true;
+        finalSummary = `Execution stopped: Maximum iteration limit of ${this.maxIterations} reached.`;
+      }
+
+      // 5. Finalize DB Trace
+      if (runId && !this.skipDbLogging) {
+        try {
+          await db
+            .update(agentRuns)
+            .set({
+              executionStatus: loopTerminatedPrematurely ? 'max_iterations_exceeded' : 'completed',
+              latencyMs: Date.now() - startTime,
+            })
+            .where(eq(agentRuns.id, runId));
+        } catch (dbError) {
+          console.warn('[AgentOrchestrator] DB telemetry finalize error:', dbError);
+        }
+      }
+
+      publishAgentEvent({
+        type: 'agent_completed',
+        runId: runId || 'unknown',
+        timestamp: new Date().toISOString(),
+        summary: finalSummary,
+        latencyMs: Date.now() - startTime,
+      });
+
+      return finalSummary;
+    } catch (loopError: any) {
+      console.error('[AgentOrchestrator] AI provider error:', loopError);
+      const isTimeout = loopError.message?.includes('504') || loopError.message?.includes('timed out');
+      
+      finalSummary = isTimeout
+        ? "I'm sorry, but the cloud AI service timed out while processing your request. The upstream server is under high demand. Please try again in a moment, or switch to an alternate model/provider."
+        : `I'm sorry, an issue occurred while processing with the AI provider: ${loopError.message}`;
+
+      if (runId && !this.skipDbLogging) {
+        try {
+          await db
+            .update(agentRuns)
+            .set({
+              executionStatus: 'failed',
+              latencyMs: Date.now() - startTime,
+            })
+            .where(eq(agentRuns.id, runId));
+        } catch (dbError) {
+          console.warn('[AgentOrchestrator] DB telemetry error finalize:', dbError);
+        }
+      }
+
+      publishAgentEvent({
+        type: 'agent_failed',
+        runId: runId || 'unknown',
+        timestamp: new Date().toISOString(),
+        error: loopError.message,
+        summary: finalSummary,
+        latencyMs: Date.now() - startTime,
+      });
+
+      return finalSummary;
     }
-
-    publishAgentEvent({
-      type: 'agent_completed',
-      runId: runId || 'unknown',
-      timestamp: new Date().toISOString(),
-      summary: finalSummary,
-      latencyMs: Date.now() - startTime,
-    });
-
-    return finalSummary;
   }
 
   public async routeToolCall(name: string, input: any): Promise<Record<string, any>> {
