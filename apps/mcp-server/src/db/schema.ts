@@ -84,3 +84,47 @@ export const agentToolCalls = pgTable('agent_tool_calls', {
 }, (table) => ({
   runIdx: index('idx_tool_calls_run').on(table.runId, table.executionOrder),
 }));
+
+export const dynamicTools = pgTable('dynamic_tools', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 64 }).unique().notNull(),
+  description: text('description').notNull(),
+  inputSchema: jsonb('input_schema').notNull(),
+  runtime: varchar('runtime', { length: 32 }).notNull().default('declarative_http'),
+  codeDefinition: jsonb('code_definition').notNull(),
+  allowedDomains: text('allowed_domains').array().notNull(),
+  riskClass: integer('risk_class').notNull().default(0),
+  status: varchar('status', { length: 32 }).notNull().default('draft'),
+  creator: varchar('creator', { length: 64 }).notNull().default('agent_orchestrator'),
+  version: integer('version').notNull().default(1),
+  capabilityToken: text('capability_token'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  nameIdx: index('idx_dynamic_tools_name').on(table.name),
+  statusIdx: index('idx_dynamic_tools_status').on(table.status),
+}));
+
+export const toolApprovalRequests = pgTable('tool_approval_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  toolId: uuid('tool_id').notNull().references(() => dynamicTools.id, { onDelete: 'cascade' }),
+  runId: uuid('run_id').notNull().references(() => agentRuns.id, { onDelete: 'cascade' }),
+  plainTitle: text('plain_title').notNull(),
+  consequenceSummary: text('consequence_summary').notNull(),
+  safetyRules: jsonb('safety_rules').notNull(),
+  status: varchar('status', { length: 32 }).notNull().default('pending'),
+  decidedBy: uuid('decided_by').references(() => users.id),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dynamicToolAuditLogs = pgTable('dynamic_tool_audit_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  toolName: varchar('tool_name', { length: 64 }).notNull(),
+  runId: uuid('run_id').references(() => agentRuns.id, { onDelete: 'set null' }),
+  action: varchar('action', { length: 32 }).notNull(),
+  details: jsonb('details').notNull(),
+  executionDurationMs: integer('execution_duration_ms'),
+  timestamp: timestamp('timestamp', { withTimezone: true }).notNull().defaultNow(),
+});
+

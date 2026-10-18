@@ -21,6 +21,9 @@ const TOOL_LABELS: Record<string, string> = {
   calendar_create_event: 'Creating calendar event',
   shopping_get_list: 'Checking shopping list',
   shopping_add_item: 'Adding to shopping list',
+  mcp_tool_create: 'Synthesizing dynamic tool',
+  mcp_tool_test: 'Testing tool in security sandbox',
+  mcp_tool_delete: 'Deprecating dynamic tool',
 };
 
 function formatToolName(text: string) {

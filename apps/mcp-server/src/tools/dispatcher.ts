@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { MCP_TOOLS } from '../schemas/tools.js';
 import { publishDeviceEvent } from '../pubsub/redis.js';
+import { dynamicRegistry } from './dynamic/registry.js';
+import { handleMetaToolCreate, handleMetaToolTest, handleMetaToolDelete } from './dynamic/metaTools.js';
 
 // Global In-Memory State Store for Home and Devices
 export interface HomeZoneState {
@@ -142,10 +144,32 @@ export const ToolValidationSchemas: Record<string, z.ZodType<any>> = {
     userId: z.string().min(1, 'userId is required'),
     preferences: z.record(z.string(), z.any()),
   }),
+  mcp_tool_create: z.object({
+    name: z.string().min(1),
+    description: z.string().min(1),
+    inputSchema: z.record(z.string(), z.any()),
+    runtime: z.enum(['declarative_http', 'isolated_vm']),
+    codeDefinition: z.record(z.string(), z.any()),
+    allowedDomains: z.array(z.string()),
+  }),
+  mcp_tool_test: z.object({
+    runtime: z.enum(['declarative_http', 'isolated_vm']),
+    codeDefinition: z.record(z.string(), z.any()),
+    testInput: z.record(z.string(), z.any()),
+    allowedDomains: z.array(z.string()),
+  }),
+  mcp_tool_delete: z.object({
+    name: z.string().min(1),
+  }),
 };
 
 // Unified Tool Dispatcher with Validation & State Mutation
 export async function executeTool(name: string, input: any): Promise<Record<string, any>> {
+  // Check if it's a dynamic tool registered in DynamicToolRegistry
+  if (!ToolValidationSchemas[name] && dynamicRegistry.hasTool(name)) {
+    return await dynamicRegistry.execute(name, input);
+  }
+
   // 1. Schema Validation
   const schema = ToolValidationSchemas[name];
   if (!schema) {
@@ -162,6 +186,18 @@ export async function executeTool(name: string, input: any): Promise<Record<stri
 
   // 2. Business Logic & Actual State Mutations
   switch (name) {
+    case 'mcp_tool_create': {
+      return await handleMetaToolCreate(validArgs as any);
+    }
+
+    case 'mcp_tool_test': {
+      return await handleMetaToolTest(validArgs as any);
+    }
+
+    case 'mcp_tool_delete': {
+      return await handleMetaToolDelete(validArgs.name);
+    }
+
     case 'home_get_state': {
       let zone = stateManager.zones.get(validArgs.zoneId);
       if (!zone) {

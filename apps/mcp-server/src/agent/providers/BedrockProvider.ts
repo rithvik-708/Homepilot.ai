@@ -1,5 +1,5 @@
 import { BedrockRuntimeClient, ConverseCommand, Tool, Message } from '@aws-sdk/client-bedrock-runtime';
-import { MCP_TOOLS } from '../../schemas/tools.js';
+import { dynamicRegistry } from '../../tools/dynamic/registry.js';
 import { AgentProvider } from './AgentProvider.js';
 
 export class BedrockProvider implements AgentProvider {
@@ -12,7 +12,7 @@ export class BedrockProvider implements AgentProvider {
 
   // Maps Phase 1 MCP Zod/JSON schemas to Bedrock's Converse API Tool Format
   private getBedrockTools(): Tool[] {
-    return MCP_TOOLS.map((tool) => ({
+    return dynamicRegistry.getActiveTools().map((tool) => ({
       toolSpec: {
         name: tool.name,
         description: tool.description,

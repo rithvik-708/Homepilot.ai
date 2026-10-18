@@ -28,6 +28,9 @@ import { MCP_TOOLS } from './schemas/tools.js';
 import { executeTool } from './tools/dispatcher.js';
 import { createStreamableHttpTransport } from '@homepilot/mcp-streamable-http';
 import { verifyAlexaOAuth } from './auth/oauth2.js';
+import { dynamicRegistry } from './tools/dynamic/registry.js';
+import { handleMetaToolCreate } from './tools/dynamic/metaTools.js';
+import { interruptManager } from './security/interruptManager.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -41,21 +44,22 @@ fastify.get('/health', async () => {
   };
 });
 
-
-// Core MCP Server initialization
+// Core MCP Server initialization with dynamic capabilities
 const mcpServer = new Server({
   name: "homepilot-mcp",
-  version: "1.0.0"
+  version: "2.0.0"
 }, {
   capabilities: {
-    tools: {}
+    tools: {
+      listChanged: true
+    }
   }
 });
 
-// List all 12 MCP Tools
+// List all MCP Tools (12 Locked Static Tools + Active Dynamic Tools)
 mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
-    tools: MCP_TOOLS.map(t => ({
+    tools: dynamicRegistry.getActiveTools().map(t => ({
       name: t.name,
       description: t.description,
       inputSchema: t.inputSchema,
@@ -106,6 +110,65 @@ fastify.post('/agent/execute', async (request, reply) => {
     request.log.error(error);
     return reply.code(500).send({ error: error.message || "Internal Agent Error" });
   }
+});
+
+// Query Pending Agent Interrupts (Active Human-in-the-Loop Requests)
+fastify.get('/agent/interrupts', async () => {
+  return { interrupts: interruptManager.getPendingInterrupts() };
+});
+
+// Resolve Agent Interrupt (First-Class HITL Resolution Endpoint)
+fastify.post('/agent/interrupt/resolve', async (request, reply) => {
+  const { interruptId, decision } = (request.body || {}) as { interruptId?: string; decision?: 'approved' | 'rejected' };
+  if (!interruptId || !decision || !['approved', 'rejected'].includes(decision)) {
+    return reply.code(400).send({ error: 'interruptId and valid decision (approved|rejected) are required' });
+  }
+
+  const resolved = interruptManager.resolveInterrupt(interruptId, decision);
+  if (!resolved) {
+    return reply.code(404).send({ error: `Interrupt '${interruptId}' not found or already resolved.` });
+  }
+
+  return reply.code(200).send({ status: 'ok', interruptId, decision });
+});
+
+// Tool Approval Webhook (Backwards Compatibility with legacy toolName callers)
+fastify.post('/agent/tool-approval', async (request, reply) => {
+  const { toolName, decision } = (request.body || {}) as { toolName?: string; decision?: 'approved' | 'rejected' };
+  if (!toolName || !decision || !['approved', 'rejected'].includes(decision)) {
+    return reply.code(400).send({ error: 'toolName and valid decision (approved|rejected) are required' });
+  }
+
+  // Resolve any pending interrupt for this tool in the orchestrator
+  const pending = interruptManager.getPendingInterrupts().find((i) => i.toolName === toolName);
+  if (pending) {
+    interruptManager.resolveInterrupt(pending.interruptId, decision);
+  }
+
+  const tool = dynamicRegistry.getTool(toolName);
+  if (!tool) {
+    return reply.code(404).send({ error: `Tool '${toolName}' not found.` });
+  }
+
+  if (decision === 'approved') {
+    tool.status = 'active';
+    dynamicRegistry.register(tool);
+    localBus.emit('agent_updates', {
+      type: 'tool_approved',
+      toolName,
+      timestamp: new Date().toISOString()
+    });
+  } else {
+    tool.status = 'deprecated';
+    dynamicRegistry.unregister(toolName);
+    localBus.emit('agent_updates', {
+      type: 'tool_rejected',
+      toolName,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  return reply.code(200).send({ status: 'ok', toolName, decision });
 });
 
 // Direct SSE Stream for web clients or Next.js proxy
