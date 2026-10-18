@@ -9,8 +9,9 @@ import { FireTVSimulator } from '../media/FireTVSimulator';
 import { VoiceInput } from '../voice/VoiceInput';
 import { QuickActions } from './QuickActions';
 import { DeviceIntegrations } from '../dev/DemoCommands';
-import { Send, Loader2, Home, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Send, Loader2, Home, SlidersHorizontal, Sparkles, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { signOut } from 'next-auth/react';
 
 export function CommandCenter() {
   const agentStream = useAgentStream();
@@ -96,14 +97,21 @@ export function CommandCenter() {
           </button>
         </div>
 
-        {/* Calm System Status Indicator */}
-        <div className="flex items-center gap-2 text-[11px] font-medium tracking-wide text-zinc-400">
-          {/* <span
-            className={`w-2 h-2 rounded-full ${
-              agentStream.connected ? 'bg-emerald-400' : 'bg-rose-400'
-            }`}
-          />
-          <span>{agentStream.connected ? 'System Ready' : 'Connecting...'}</span> */}
+        {/* Homeowner Profile & Calm Status */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-950/60 border border-zinc-800/60 text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-zinc-300 font-medium hidden sm:inline">Homeowner</span>
+          </div>
+
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 active:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/60 text-xs font-medium transition-all duration-150 cursor-pointer"
+            title="Sign out of Homepilot"
+          >
+            <LogOut className="w-3.5 h-3.5 text-zinc-400 hover:text-rose-400" />
+            <span className="hidden sm:inline">Sign Out</span>
+          </button>
         </div>
       </header>
 

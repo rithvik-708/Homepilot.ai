@@ -16,6 +16,7 @@ export interface AgentInterrupt {
   payload?: Record<string, any>;
   timestamp: string;
   status: 'pending' | 'resolved' | 'rejected' | 'timeout';
+  decidedBy?: string;
 }
 
 interface PendingInterruptEntry {
@@ -92,9 +93,9 @@ export class InterruptManager {
   }
 
   /**
-   * Resolves a pending interrupt with human decision ('approved' | 'rejected').
+   * Resolves a pending interrupt with human decision ('approved' | 'rejected') and optional decidedBy userId.
    */
-  public resolveInterrupt(interruptId: string, decision: 'approved' | 'rejected'): boolean {
+  public resolveInterrupt(interruptId: string, decision: 'approved' | 'rejected', userId?: string): boolean {
     const entry = this.pending.get(interruptId);
     if (!entry) {
       return false;
@@ -102,6 +103,9 @@ export class InterruptManager {
 
     clearTimeout(entry.timer);
     entry.interrupt.status = decision === 'approved' ? 'resolved' : 'rejected';
+    if (userId) {
+      entry.interrupt.decidedBy = userId;
+    }
     this.pending.delete(interruptId);
     entry.resolve(decision);
     return true;

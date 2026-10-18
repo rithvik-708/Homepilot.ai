@@ -28,6 +28,8 @@ import { MCP_TOOLS } from './schemas/tools.js';
 import { executeTool } from './tools/dispatcher.js';
 import { createStreamableHttpTransport } from '@homepilot/mcp-streamable-http';
 import { verifyAlexaOAuth } from './auth/oauth2.js';
+import { verifyWebSessionToken } from './auth/sessionAuth.js';
+import { ensureDefaultUserExists } from './db/seed.js';
 import { dynamicRegistry } from './tools/dynamic/registry.js';
 import { handleMetaToolCreate } from './tools/dynamic/metaTools.js';
 import { interruptManager } from './security/interruptManager.js';
@@ -92,20 +94,21 @@ import { AgentOrchestrator } from './agent/orchestrator.js';
 import { localBus } from './pubsub/redis.js';
 
 // Agent execution endpoint
-fastify.post('/agent/execute', async (request, reply) => {
+fastify.post('/agent/execute', { preHandler: verifyWebSessionToken }, async (request, reply) => {
   const { prompt } = request.body as { prompt: string };
+  const userId = (request as any).userId || (request.body as any)?.userId;
   if (!prompt) {
     return reply.code(400).send({ error: "prompt is required" });
   }
 
   try {
     const orchestrator = new AgentOrchestrator();
-    const result = await orchestrator.executeTask(prompt);
+    const result = await orchestrator.executeTask(prompt, userId);
     
     return reply
       .code(200)
       .header('Content-Type', 'application/json')
-      .send({ summary: result });
+      .send({ summary: result, userId });
   } catch (error: any) {
     request.log.error(error);
     return reply.code(500).send({ error: error.message || "Internal Agent Error" });
@@ -118,18 +121,19 @@ fastify.get('/agent/interrupts', async () => {
 });
 
 // Resolve Agent Interrupt (First-Class HITL Resolution Endpoint)
-fastify.post('/agent/interrupt/resolve', async (request, reply) => {
+fastify.post('/agent/interrupt/resolve', { preHandler: verifyWebSessionToken }, async (request, reply) => {
   const { interruptId, decision } = (request.body || {}) as { interruptId?: string; decision?: 'approved' | 'rejected' };
+  const userId = (request as any).userId || (request.body as any)?.userId;
   if (!interruptId || !decision || !['approved', 'rejected'].includes(decision)) {
     return reply.code(400).send({ error: 'interruptId and valid decision (approved|rejected) are required' });
   }
 
-  const resolved = interruptManager.resolveInterrupt(interruptId, decision);
+  const resolved = interruptManager.resolveInterrupt(interruptId, decision, userId);
   if (!resolved) {
     return reply.code(404).send({ error: `Interrupt '${interruptId}' not found or already resolved.` });
   }
 
-  return reply.code(200).send({ status: 'ok', interruptId, decision });
+  return reply.code(200).send({ status: 'ok', interruptId, decision, decidedBy: userId });
 });
 
 // Tool Approval Webhook (Backwards Compatibility with legacy toolName callers)
@@ -206,6 +210,7 @@ fastify.get('/agent/events', async (request, reply) => {
 
 const start = async () => {
   try {
+    await ensureDefaultUserExists();
     await fastify.listen({ port: 8080, host: '0.0.0.0' });
     console.log(`[Homepilot MCP] Server listening on port 8080`);
   } catch (err) {

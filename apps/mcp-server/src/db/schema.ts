@@ -65,6 +65,7 @@ export const mediaCatalog = pgTable('media_catalog', {
 
 export const agentRuns = pgTable('agent_runs', {
   id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
   rawPrompt: text('raw_prompt').notNull(),
   intentDetected: varchar('intent_detected', { length: 64 }).notNull().default('analyzing'),
   bedrockModelId: varchar('bedrock_model_id', { length: 128 }).notNull(),
@@ -107,7 +108,7 @@ export const dynamicTools = pgTable('dynamic_tools', {
 
 export const toolApprovalRequests = pgTable('tool_approval_requests', {
   id: uuid('id').primaryKey().defaultRandom(),
-  toolId: uuid('tool_id').notNull().references(() => dynamicTools.id, { onDelete: 'cascade' }),
+  toolId: uuid('tool_id').references(() => dynamicTools.id, { onDelete: 'cascade' }),
   runId: uuid('run_id').notNull().references(() => agentRuns.id, { onDelete: 'cascade' }),
   plainTitle: text('plain_title').notNull(),
   consequenceSummary: text('consequence_summary').notNull(),

@@ -1,5 +1,5 @@
 import { db } from '../db/index.js';
-import { agentRuns, agentToolCalls } from '../db/schema.js';
+import { agentRuns, agentToolCalls, toolApprovalRequests } from '../db/schema.js';
 import { AgentProvider } from './providers/AgentProvider.js';
 import { createProvider } from './providers/index.js';
 import { executeTool } from '../tools/dispatcher.js';
@@ -42,16 +42,17 @@ export class AgentOrchestrator {
     }
   }
 
-  public async executeTask(prompt: string): Promise<string> {
+  public async executeTask(prompt: string, userId?: string): Promise<string> {
     const startTime = Date.now();
     let runId: string | null = null;
 
-    // 1. Initialize Trace in DB
+    // 1. Initialize Trace in DB with authenticated userId
     if (!this.skipDbLogging) {
       try {
         const [run] = await db
           .insert(agentRuns)
           .values({
+            userId: userId || null,
             rawPrompt: prompt,
             intentDetected: this.detectIntent(prompt),
             bedrockModelId: this.modelId,
@@ -73,8 +74,14 @@ export class AgentOrchestrator {
     });
 
     const currentDate = new Date().toISOString().slice(0, 10);
+    const activeUserId = userId || '00000000-0000-0000-0000-000000000001';
     const systemInstruction = `You are Homepilot, an autonomous smart-home orchestration AI assistant.
 Your job is to execute targeted physical device commands and smart home actions using your available tools.
+
+AUTHENTICATED HOMEOWNER IDENTITY:
+- Active Authenticated Homeowner User ID: "${activeUserId}".
+- When inspecting or querying user preferences with user_get_preferences, ALWAYS pass userId: "${activeUserId}".
+- When checking calendar schedules with calendar_get_schedule or performing routines, associate context with "${activeUserId}".
 
 CORE RULES:
 1. Target Specific Goals: ONLY execute tools that directly serve the user's specific request. NEVER execute unrelated actions (e.g., do NOT start media playback, do NOT add shopping items, and do NOT change climate unless explicitly requested or clearly part of the requested routine).
@@ -91,11 +98,11 @@ CORE RULES:
 3. Standard Routines (ONLY apply when specifically requested):
    - House Preparation / Hosting Guests (e.g. "My parents are coming tomorrow. Make the house ready."):
      - Check the schedule with calendar_get_schedule (date: "${currentDate}").
-     - Query user preferences with user_get_preferences (userId: "default_user").
+     - Query user preferences with user_get_preferences (userId: "${activeUserId}").
      - Adjust climate and lights using home_set_environment (zoneId: "living_room", temperature: 22, lightsOn: true, lightingMode: "bright_welcoming"; and zoneId: "bedroom", temperature: 22, lightsOn: true, lightingMode: "soft").
      - Add guest supplies using shopping_add_item (itemName: "Fresh Towels", quantity: 2; itemName: "Snacks & Refreshments", quantity: 4).
    - Movie Night:
-     - Query user preferences with user_get_preferences.
+     - Query user preferences with user_get_preferences (userId: "${activeUserId}").
      - Set lighting & climate using home_set_environment (zoneId: "living_room", temperature: 21, lightsOn: true, lightingMode: "warm").
      - Start media playback with media_launch_playback (mediaId: "movie_interstellar_4k", zoneId: "living_room").
 4. Completion & Stopping:
@@ -177,6 +184,23 @@ CORE RULES:
               type: 'tool_clearance_required',
             });
 
+            // Insert initial pending tool approval request into DB audit trail
+            let approvalRequestId: string | null = null;
+            if (runId && !this.skipDbLogging) {
+              try {
+                const [appReq] = await db.insert(toolApprovalRequests).values({
+                  runId: runId,
+                  plainTitle: resultPayload.contract?.plainTitle || tool.name,
+                  consequenceSummary: resultPayload.contract?.consequenceSummary || 'Clearance requested',
+                  safetyRules: resultPayload.contract?.safetyRules || [],
+                  status: 'pending',
+                }).returning();
+                approvalRequestId = appReq?.id || null;
+              } catch (appErr) {
+                console.warn('[AgentOrchestrator] Failed to insert initial tool approval request:', appErr);
+              }
+            }
+
             publishAgentEvent({
               type: 'agent_interrupted',
               runId: runId || 'unknown',
@@ -191,6 +215,34 @@ CORE RULES:
 
             // Await homeowner clearance (with default fail-secure timeout)
             const decision = await resolutionPromise;
+
+            // Update tool approval request audit in DB with decidedBy homeowner user ID
+            if (runId && !this.skipDbLogging) {
+              try {
+                const decidedByUserId = interrupt.decidedBy || userId || null;
+                if (approvalRequestId) {
+                  await db.update(toolApprovalRequests)
+                    .set({
+                      status: decision,
+                      decidedBy: decidedByUserId,
+                      decidedAt: new Date(),
+                    })
+                    .where(eq(toolApprovalRequests.id, approvalRequestId));
+                } else {
+                  await db.insert(toolApprovalRequests).values({
+                    runId: runId,
+                    plainTitle: resultPayload.contract?.plainTitle || tool.name,
+                    consequenceSummary: resultPayload.contract?.consequenceSummary || 'Clearance requested',
+                    safetyRules: resultPayload.contract?.safetyRules || [],
+                    status: decision,
+                    decidedBy: decidedByUserId,
+                    decidedAt: new Date(),
+                  });
+                }
+              } catch (appErr) {
+                console.warn('[AgentOrchestrator] Failed to update tool approval request audit in DB:', appErr);
+              }
+            }
 
             if (decision === 'approved') {
               const registeredTool = dynamicRegistry.getTool(resultPayload.name);
