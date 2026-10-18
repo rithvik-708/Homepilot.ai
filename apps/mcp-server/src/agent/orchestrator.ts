@@ -6,6 +6,8 @@ import { executeTool } from '../tools/dispatcher.js';
 import { Message, ToolResultBlock } from '@aws-sdk/client-bedrock-runtime';
 import { eq } from 'drizzle-orm';
 import { publishAgentEvent } from '../pubsub/redis.js';
+import { interruptManager } from '../security/interruptManager.js';
+import { dynamicRegistry } from '../tools/dynamic/registry.js';
 
 export interface OrchestratorOptions {
   useLocal?: boolean;
@@ -123,7 +125,84 @@ export class AgentOrchestrator {
 
         try {
           // Unified tool execution (Matches Fastify handler & updates shared state)
-          const resultPayload = await executeTool(tool.name, tool.input);
+          let resultPayload = await executeTool(tool.name, tool.input);
+
+          // Human-in-the-Loop Interrupt handling (Security Control Plane)
+          if (resultPayload && resultPayload.status === 'awaiting_human_approval') {
+            const { interrupt, promise: resolutionPromise } = interruptManager.createInterrupt({
+              runId: runId || 'unknown',
+              toolName: resultPayload.name || tool.name,
+              toolCallId: tool.toolUseId || 'unknown_call',
+              contract: resultPayload.contract,
+              type: 'tool_clearance_required',
+            });
+
+            publishAgentEvent({
+              type: 'agent_interrupted',
+              runId: runId || 'unknown',
+              interrupt,
+              timestamp: new Date().toISOString(),
+              step: {
+                id: tool.toolUseId,
+                text: `Security clearance required for '${resultPayload.name}': ${resultPayload.contract?.plainTitle || 'Authorization needed'}`,
+                status: 'running',
+              },
+            });
+
+            // Await homeowner clearance (with default fail-secure timeout)
+            const decision = await resolutionPromise;
+
+            if (decision === 'approved') {
+              const registeredTool = dynamicRegistry.getTool(resultPayload.name);
+              if (registeredTool) {
+                registeredTool.status = 'active';
+                dynamicRegistry.register(registeredTool);
+              }
+
+              publishAgentEvent({
+                type: 'interrupt_resolved',
+                runId: runId || 'unknown',
+                interruptId: interrupt.interruptId,
+                decision: 'approved',
+                toolName: resultPayload.name,
+                timestamp: new Date().toISOString(),
+                step: {
+                  id: tool.toolUseId,
+                  text: `Authorization Granted by Homeowner for '${resultPayload.name}'`,
+                  status: 'completed',
+                },
+              });
+
+              resultPayload = {
+                status: 'authorized_and_registered',
+                name: resultPayload.name,
+                riskClass: resultPayload.contract?.riskClass,
+                message: `Physical authorization granted by homeowner for '${resultPayload.name}'. The tool is now active and ready for invocation.`,
+              };
+            } else {
+              dynamicRegistry.unregister(resultPayload.name);
+
+              publishAgentEvent({
+                type: 'interrupt_resolved',
+                runId: runId || 'unknown',
+                interruptId: interrupt.interruptId,
+                decision: 'rejected',
+                toolName: resultPayload.name,
+                timestamp: new Date().toISOString(),
+                step: {
+                  id: tool.toolUseId,
+                  text: `Authorization Denied by Homeowner for '${resultPayload.name}'`,
+                  status: 'failed',
+                },
+              });
+
+              resultPayload = {
+                status: 'denied_by_homeowner',
+                name: resultPayload.name,
+                message: `Physical authorization denied by homeowner for '${resultPayload.name}'. Action was aborted.`,
+              };
+            }
+          }
 
           // Log Tool Execution to DB
           if (runId && !this.skipDbLogging) {

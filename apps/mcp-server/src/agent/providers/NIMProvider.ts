@@ -1,6 +1,6 @@
 import { Message } from '@aws-sdk/client-bedrock-runtime';
 import { AgentProvider } from './AgentProvider.js';
-import { MCP_TOOLS } from '../../schemas/tools.js';
+import { dynamicRegistry } from '../../tools/dynamic/registry.js';
 
 export class NIMProvider implements AgentProvider {
   private baseUrl: string;
@@ -19,7 +19,7 @@ export class NIMProvider implements AgentProvider {
   }
 
   private getNIMTools() {
-    return MCP_TOOLS.map((tool) => ({
+    return dynamicRegistry.getActiveTools().map((tool) => ({
       type: 'function',
       function: {
         name: tool.name,

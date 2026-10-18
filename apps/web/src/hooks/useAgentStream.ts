@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { AgentStep, AgentUpdate, DeviceUpdate, DeviceStates } from '../types/events';
+import { AgentStep, AgentUpdate, DeviceUpdate, DeviceStates, AgentInterrupt } from '../types/events';
+
+export interface PendingApproval {
+  toolName: string;
+  contract: {
+    plainTitle: string;
+    consequenceSummary: string;
+    safetyRules: string[];
+    riskClass: number;
+    capabilityToken: string;
+  };
+}
 
 export function useAgentStream() {
   const [connected, setConnected] = useState(false);
@@ -10,6 +21,8 @@ export function useAgentStream() {
   const [modelId, setModelId] = useState<string | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [activeInterrupt, setActiveInterrupt] = useState<AgentInterrupt | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
 
   const esRef = useRef<EventSource | null>(null);
 
@@ -51,6 +64,8 @@ export function useAgentStream() {
             setAgentSteps([]);
             setLastError(null);
             setLatencyMs(null);
+            setActiveInterrupt(null);
+            setPendingApproval(null);
           } else if (data.step) {
             setAgentSteps((prev) => {
               const existing = prev.findIndex((s) => s.id === data.step!.id);
@@ -65,6 +80,36 @@ export function useAgentStream() {
           
           if (data.type === 'agent_failed' || data.type === 'tool_failed') {
             if (data.error) setLastError(data.error);
+          }
+
+          // Structured Agent Interrupt Event
+          if (data.type === 'agent_interrupted' && data.interrupt) {
+            setActiveInterrupt(data.interrupt);
+            if (data.interrupt.contract) {
+              setPendingApproval({
+                toolName: data.interrupt.toolName,
+                contract: data.interrupt.contract,
+              });
+            }
+          }
+
+          // Interrupt Resolution Event
+          if (data.type === 'interrupt_resolved') {
+            setActiveInterrupt(null);
+            setPendingApproval(null);
+          }
+
+          // Legacy compatibility events
+          if (data.type === 'tool_approval_required' && data.contract) {
+            setPendingApproval({
+              toolName: data.toolName || 'unknown_tool',
+              contract: data.contract,
+            });
+          }
+
+          if (data.type === 'tool_approved' || data.type === 'tool_rejected') {
+            setPendingApproval(null);
+            setActiveInterrupt(null);
           }
         } catch (err) {
           console.error('[SSE] Failed to parse agent update:', err);
@@ -103,5 +148,9 @@ export function useAgentStream() {
     modelId,
     activeRunId,
     lastError,
+    activeInterrupt,
+    setActiveInterrupt,
+    pendingApproval,
+    setPendingApproval,
   };
 }

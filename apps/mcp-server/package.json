@@ -25,6 +25,7 @@
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.1.0",
+    "onnxruntime-node": "^1.30.0",
     "postgres": "^3.4.9",
     "zod": "^4.6.5"
   },

@@ -139,5 +139,47 @@ export const MCP_TOOLS = [
       },
       required: ["userId", "preferences"]
     }
+  },
+  {
+    name: 'mcp_tool_create',
+    description: 'Synthesize and register a dynamic tool into the MCP server with automated security checks',
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Unique name of the new tool (e.g. custom_smart_plug)" },
+        description: { type: "string", description: "Clear description of the tool capability" },
+        inputSchema: { type: "object", description: "JSON schema Draft-07 describing accepted arguments" },
+        runtime: { type: "string", enum: ["declarative_http", "isolated_vm"], description: "Execution runtime" },
+        codeDefinition: { type: "object", description: "HTTP template or isolated JS script definition" },
+        allowedDomains: { type: "array", items: { type: "string" }, description: "Whitelisted egress domain names" }
+      },
+      required: ["name", "description", "inputSchema", "runtime", "codeDefinition", "allowedDomains"]
+    }
+  },
+  {
+    name: 'mcp_tool_test',
+    description: 'Dry-run and verify a tool candidate in an isolated sandbox before registration',
+    inputSchema: {
+      type: "object",
+      properties: {
+        runtime: { type: "string", enum: ["declarative_http", "isolated_vm"] },
+        codeDefinition: { type: "object", description: "HTTP template or isolated JS script definition" },
+        testInput: { type: "object", description: "Sample input arguments for dry-run" },
+        allowedDomains: { type: "array", items: { type: "string" }, description: "Whitelisted egress domain names" }
+      },
+      required: ["runtime", "codeDefinition", "testInput", "allowedDomains"]
+    }
+  },
+  {
+    name: 'mcp_tool_delete',
+    description: 'Deprecate or unregister a dynamic tool from the active registry',
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Name of the dynamic tool to delete" }
+      },
+      required: ["name"]
+    }
   }
 ];
+

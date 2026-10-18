@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAgentStream } from '../../hooks/useAgentStream';
 import { ExecutionCard } from '../agent/ExecutionCard';
+import { ConsequenceContractCard } from '../agent/ConsequenceContractCard';
 import { HardwareSimulator } from '../devices/HardwareSimulator';
 import { FireTVSimulator } from '../media/FireTVSimulator';
 import { VoiceInput } from '../voice/VoiceInput';
@@ -92,6 +93,31 @@ export function CommandCenter() {
           <section className="mt-2">
              <DemoCommands onCommand={handleCommand} isLoading={isSubmitting} />
           </section>
+
+          {/* First-Class Agent Interrupt: Consequence Contract Card */}
+          {(agentStream.activeInterrupt || agentStream.pendingApproval) && (
+            <section className="animate-in fade-in slide-in-from-top-4 duration-300">
+              <ConsequenceContractCard
+                interruptId={agentStream.activeInterrupt?.interruptId}
+                toolName={agentStream.activeInterrupt?.toolName || agentStream.pendingApproval?.toolName || 'unknown_tool'}
+                plainTitle={
+                  agentStream.activeInterrupt?.contract?.plainTitle ||
+                  agentStream.pendingApproval?.contract.plainTitle ||
+                  'Action Authorization'
+                }
+                consequenceSummary={
+                  agentStream.activeInterrupt?.contract?.consequenceSummary ||
+                  agentStream.pendingApproval?.contract.consequenceSummary ||
+                  'The agent requested an action that requires physical security clearance.'
+                }
+                safetyRules={
+                  agentStream.activeInterrupt?.contract?.safetyRules ||
+                  agentStream.pendingApproval?.contract.safetyRules ||
+                  []
+                }
+              />
+            </section>
+          )}
 
           {/* Execution Card */}
           <section className="flex-1 min-h-[350px]">

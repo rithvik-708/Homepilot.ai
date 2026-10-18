@@ -1,5 +1,5 @@
 import { Message } from '@aws-sdk/client-bedrock-runtime';
-import { MCP_TOOLS } from '../../schemas/tools.js';
+import { dynamicRegistry } from '../../tools/dynamic/registry.js';
 import { AgentProvider } from './AgentProvider.js';
 
 export class OllamaProvider implements AgentProvider {
@@ -15,7 +15,7 @@ export class OllamaProvider implements AgentProvider {
   }
 
   private getOllamaTools() {
-    return MCP_TOOLS.map((tool) => ({
+    return dynamicRegistry.getActiveTools().map((tool) => ({
       type: 'function',
       function: {
         name: tool.name,

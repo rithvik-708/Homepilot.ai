@@ -4,14 +4,37 @@ import { AgentOrchestrator } from '../src/agent/orchestrator.js';
 
 describe('NVIDIA NIM Provider Integration', () => {
   const hasApiKey = !!process.env.NVIDIA_NIM_API_KEY;
+  let nimResponsive = false;
 
-  beforeAll(() => {
-    if (!hasApiKey) {
-      console.log('SKIPPED — NVIDIA_NIM_API_KEY not configured');
+  beforeAll(async () => {
+    if (hasApiKey) {
+      try {
+        const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.NVIDIA_NIM_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.2-90b-vision-instruct',
+            messages: [{ role: 'user', content: 'hi' }],
+            max_tokens: 1,
+          }),
+          signal: AbortSignal.timeout(2500),
+        });
+        nimResponsive = res.ok;
+      } catch {
+        nimResponsive = false;
+      }
+    }
+    if (!nimResponsive) {
+      console.log('SKIPPED — NVIDIA NIM endpoint offline, unreachable, or unauthenticated.');
     }
   });
 
-  it.skipIf(!hasApiKey)('should reach NIM endpoint and return text response', async () => {
+  it('should reach NIM endpoint and return text response', async ({ skip }) => {
+    if (!nimResponsive) return skip();
+
     const provider = new NIMProvider();
     const result = await provider.invoke([
       {
@@ -25,7 +48,9 @@ describe('NVIDIA NIM Provider Integration', () => {
     expect(result?.content?.[0].text).toBeDefined();
   }, 10000);
 
-  it.skipIf(!hasApiKey)('should trigger tool calls with NIM (e.g. home_get_state)', async () => {
+  it('should trigger tool calls with NIM (e.g. home_get_state)', async ({ skip }) => {
+    if (!nimResponsive) return skip();
+
     const provider = new NIMProvider();
     const result = await provider.invoke([
       {
@@ -42,7 +67,9 @@ describe('NVIDIA NIM Provider Integration', () => {
     expect(toolCall?.toolUse?.name).toBe('home_get_state');
   }, 15000);
 
-  it.skipIf(!hasApiKey)('should work with AgentOrchestrator for single tool request', async () => {
+  it('should work with AgentOrchestrator for single tool request', async ({ skip }) => {
+    if (!nimResponsive) return skip();
+
     process.env.AI_PROVIDER = 'nim'; // Ensure the factory picks NIM
     const orchestrator = new AgentOrchestrator({ skipDbLogging: true });
     
@@ -52,7 +79,9 @@ describe('NVIDIA NIM Provider Integration', () => {
     expect(typeof result).toBe('string');
   }, 30000);
 
-  it.skipIf(!hasApiKey)('should work with AgentOrchestrator for multi-tool request', async () => {
+  it('should work with AgentOrchestrator for multi-tool request', async ({ skip }) => {
+    if (!nimResponsive) return skip();
+
     process.env.AI_PROVIDER = 'nim';
     const orchestrator = new AgentOrchestrator({ skipDbLogging: true });
     
