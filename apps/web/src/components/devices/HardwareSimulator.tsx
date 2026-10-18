@@ -16,8 +16,13 @@ const DEFAULT_ZONES = [
 
 export function HardwareSimulator({ deviceStates }: HardwareSimulatorProps) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 h-full flex flex-col">
-      <h2 className="text-sm font-semibold tracking-wider text-zinc-400 mb-6">HOME STATE</h2>
+    <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-6 h-full flex flex-col shadow-sm">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-xs font-semibold tracking-wider text-zinc-400 uppercase">
+          Climate & Lighting
+        </h2>
+        <span className="text-[11px] text-zinc-500 font-medium">3 Active Zones</span>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
         {DEFAULT_ZONES.map((zone) => {
@@ -27,7 +32,7 @@ export function HardwareSimulator({ deviceStates }: HardwareSimulatorProps) {
           const targetTemp = state.targetTemperature ?? temp;
 
           return (
-            <div key={zone.id} className="bg-zinc-950/50 border border-zinc-800/80 rounded-lg p-4 relative overflow-hidden flex flex-col">
+            <div key={zone.id} className="bg-zinc-950/40 border border-zinc-800/60 rounded-xl p-4 relative overflow-hidden flex flex-col">
               {/* Light Background Glow Animation */}
               <motion.div
                 className="absolute inset-0 bg-yellow-400 mix-blend-overlay pointer-events-none"

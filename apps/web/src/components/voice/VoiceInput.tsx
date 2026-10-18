@@ -105,19 +105,19 @@ export function VoiceInput({ onCommand }: { onCommand: (cmd: string) => void }) 
 
       <button
         onClick={toggleListening}
-        className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-all duration-300 border ${
+        className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold transition-all duration-200 border ${
           isListening 
             ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20' 
-            : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+            : 'bg-zinc-800/80 border-zinc-700/50 text-zinc-300 hover:bg-zinc-700/80 hover:text-white shadow-sm'
         }`}
       >
         {isListening ? (
           <>
-            <Square className="w-4 h-4 fill-current" /> Stop Listening
+            <Square className="w-3.5 h-3.5 fill-current" /> Stop Listening
           </>
         ) : (
           <>
-            <Mic className="w-4 h-4" /> Use Voice Input
+            <Mic className="w-3.5 h-3.5 text-indigo-400" /> Use Voice Input
           </>
         )}
       </button>

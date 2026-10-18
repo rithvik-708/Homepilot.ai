@@ -29,13 +29,13 @@ export function FireTVSimulator({ deviceStates }: FireTVSimulatorProps) {
   }, []);
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden h-full flex flex-col shadow-2xl relative">
-      <div className="bg-zinc-950 px-4 py-3 border-b border-zinc-800/80 flex items-center justify-between z-20">
+    <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl overflow-hidden h-full flex flex-col shadow-sm relative">
+      <div className="bg-zinc-950/60 px-5 py-3 border-b border-zinc-800/60 flex items-center justify-between z-20">
         <div className="flex items-center gap-2">
-          <Tv className="w-4 h-4 text-zinc-500" />
-          <span className="text-xs font-semibold tracking-widest text-zinc-400">FIRE TV</span>
+          <Tv className="w-4 h-4 text-indigo-400" />
+          <span className="text-xs font-semibold tracking-wider text-zinc-300">FIRE TV</span>
         </div>
-        <div className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+        <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
           <Clock className="w-3.5 h-3.5" />
           {currentTime}
         </div>
