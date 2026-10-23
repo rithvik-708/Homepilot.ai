@@ -2,6 +2,7 @@ import { Message } from '@aws-sdk/client-bedrock-runtime';
 
 export interface InvokeOptions {
   forceSummary?: boolean;
+  systemInstruction?: string;
 }
 
 export interface AgentProvider {

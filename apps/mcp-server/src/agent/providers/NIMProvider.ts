@@ -32,6 +32,10 @@ export class NIMProvider implements AgentProvider {
   public async invoke(messages: Message[], options?: InvokeOptions): Promise<Message | undefined> {
     const formattedMessages: any[] = [];
 
+    if (options?.systemInstruction && !messages.some((m) => (m.role as string) === 'system')) {
+      formattedMessages.push({ role: 'system', content: options.systemInstruction });
+    }
+
     for (const m of messages) {
       let role = (m.role as string) === 'system' ? 'system' : (m.role === 'user' ? 'user' : 'assistant');
 
@@ -255,6 +259,10 @@ export class NIMProvider implements AgentProvider {
           contentBlocks.push(extractedTools[0]);
         }
       }
+    }
+
+    if (contentBlocks.length === 0) {
+      contentBlocks.push({ text: msg.content || '' });
     }
 
     return {

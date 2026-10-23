@@ -41,7 +41,7 @@ describe('NVIDIA NIM Provider Integration', () => {
         role: 'user',
         content: [{ text: 'Hello! Just say "Hi" and nothing else.' }]
       }
-    ]);
+    ], { forceSummary: true });
     
     expect(result).toBeDefined();
     expect(result?.role).toBe('assistant');

@@ -112,10 +112,6 @@ CORE RULES:
 
     const messages: Message[] = [
       {
-        role: 'system' as any,
-        content: [{ text: systemInstruction }],
-      },
-      {
         role: 'user',
         content: [{ text: prompt }],
       },
@@ -134,7 +130,10 @@ CORE RULES:
     try {
       while (!isComplete && iterationCount < this.maxIterations) {
         iterationCount++;
-        const responseMessage = await this.provider.invoke(messages, { forceSummary: shouldForceSummary });
+        const responseMessage = await this.provider.invoke(messages, {
+          forceSummary: shouldForceSummary,
+          systemInstruction,
+        });
         if (!responseMessage) {
           finalSummary = 'No response from model provider.';
           isComplete = true;

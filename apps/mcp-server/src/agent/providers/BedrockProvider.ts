@@ -28,7 +28,10 @@ export class BedrockProvider implements AgentProvider {
     const nonSystemMessages = messages.filter(m => (m.role as string) !== 'system');
 
     let systemConfig: any[] | undefined = undefined;
-    if (systemMessages.length > 0) {
+    const systemText = options?.systemInstruction || (systemMessages[0]?.content?.[0]?.text);
+    if (systemText) {
+      systemConfig = [{ text: systemText }];
+    } else if (systemMessages.length > 0) {
       systemConfig = systemMessages.map(sm => ({
         text: typeof sm.content === 'string' ? sm.content : (sm.content?.[0]?.text || '')
       }));

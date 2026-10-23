@@ -25,8 +25,14 @@ export class OllamaProvider implements AgentProvider {
     }));
   }
 
-  public async invoke(messages: any[]): Promise<Message | undefined> {
-    const formattedMessages = messages.map((m) => {
+  public async invoke(messages: any[], options?: import('./AgentProvider.js').InvokeOptions): Promise<Message | undefined> {
+    const formattedMessages: any[] = [];
+
+    if (options?.systemInstruction && !messages.some((m: any) => (m.role as string) === 'system')) {
+      formattedMessages.push({ role: 'system', content: options.systemInstruction });
+    }
+
+    const mapped = messages.map((m) => {
       let content = '';
       if (typeof m.content === 'string') {
         content = m.content;
@@ -53,7 +59,7 @@ export class OllamaProvider implements AgentProvider {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: this.model,
-        messages: formattedMessages,
+        messages: [...formattedMessages, ...mapped],
         tools: this.getOllamaTools(),
         stream: false,
       }),
